@@ -27,8 +27,8 @@ export default function MoreScreen() {
   }, [configuracoes]);
 
   const avisar = (titulo: string, msg: string) => {
-    if (Platform.OS === "web") {
-      alert(`${titulo} ${msg}`);
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.alert(`${titulo} ${msg}`);
     } else {
       Alert.alert(titulo, msg);
     }
@@ -42,10 +42,10 @@ export default function MoreScreen() {
       pix: pix.trim(),
       banco: banco.trim(),
     });
-    avisar("✅ Sucesso!", "Dados da escola salvos!");
+    avisar("✅ Sucesso!", "Dados da escola gravados com sucesso!");
   };
 
-  // 📤 EXPORTAR BACKUP (Gera download do arquivo JSON)
+  // 📤 EXPORTAR BACKUP (Gera ficheiro JSON para transferência)
   const exportarBackup = async () => {
     try {
       const state = useStore.getState();
@@ -58,42 +58,43 @@ export default function MoreScreen() {
 
       const jsonString = JSON.stringify(dadosCompletos, null, 2);
 
-      if (Platform.OS === "web") {
+      if (Platform.OS === "web" && typeof document !== "undefined") {
         const blob = new Blob([jsonString], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `backup_alphamusic_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.json`;
+        a.download = `backup_alphamusic.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        avisar("✅ Sucesso!", "Arquivo de backup baixado! Envie-o para o computador.");
+        avisar("✅ Concluído!", "Cópia de segurança transferida.");
       } else {
-        avisar("Backup", "Recurso disponível no navegador.");
+        avisar("Aviso", "Funcionalidade disponível no navegador Web.");
       }
-    } catch (e) {
-      avisar("❌ Erro", "Não foi possível gerar o backup.");
+    } catch {
+      avisar("❌ Erro", "Não foi possível gerar a cópia de segurança.");
     }
   };
 
-  // 📥 IMPORTAR BACKUP (Lê o arquivo JSON e atualiza tudo)
+  // 📥 IMPORTAR BACKUP (Restaura os dados gravados)
   const importarBackup = () => {
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" && typeof document !== "undefined") {
       const input = document.createElement("input");
       input.type = "file";
       input.accept = ".json";
       input.onchange = async (event: any) => {
-        const file = event.target.files[0];
+        const file = event?.target?.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (e: any) => {
           try {
-            const dados = JSON.parse(e.target.result);
+            const conteudo = e?.target?.result;
+            const dados = JSON.parse(conteudo);
 
-            if (dados.alunos && Array.isArray(dados.alunos)) {
-              if (window.localStorage) {
+            if (dados && Array.isArray(dados.alunos)) {
+              if (typeof window !== "undefined" && window.localStorage) {
                 window.localStorage.setItem("alunos", JSON.stringify(dados.alunos));
                 window.localStorage.setItem("pagamentos", JSON.stringify(dados.pagamentos || []));
                 window.localStorage.setItem("configuracoes", JSON.stringify(dados.configuracoes || {}));
@@ -104,12 +105,14 @@ export default function MoreScreen() {
 
               await carregarDados();
               avisar("✅ Sucesso!", "Dados sincronizados com sucesso!");
-              window.location.reload();
+              if (typeof window !== "undefined") {
+                window.location.reload();
+              }
             } else {
-              avisar("❌ Erro", "Arquivo de backup inválido.");
+              avisar("❌ Erro", "O ficheiro selecionado não tem um formato válido.");
             }
-          } catch (err) {
-            avisar("❌ Erro", "Falha ao processar o arquivo de backup.");
+          } catch {
+            avisar("❌ Erro", "Falha ao processar o ficheiro de cópia de segurança.");
           }
         };
         reader.readAsText(file);
@@ -139,8 +142,8 @@ export default function MoreScreen() {
   });
 
   const fazerLogout = async () => {
-    if (Platform.OS === "web") {
-      const confirmou = window.confirm("Tem certeza que deseja sair?");
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const confirmou = window.confirm("Tem a certeza de que deseja sair?");
       if (confirmou) {
         await limparUsuarioLogado();
         window.location.reload();
@@ -148,7 +151,7 @@ export default function MoreScreen() {
     } else {
       Alert.alert(
         "Sair da conta",
-        "Tem certeza que deseja sair?",
+        "Tem a certeza de que deseja sair?",
         [
           { text: "Cancelar", style: "cancel" },
           {
@@ -186,7 +189,7 @@ export default function MoreScreen() {
           onChangeText={setResponsavel}
         />
 
-        <Text style={styles.label}>📞 Contato</Text>
+        <Text style={styles.label}>📞 Contacto</Text>
         <TextInput
           style={styles.input}
           placeholder="Telefone/WhatsApp"
@@ -198,7 +201,7 @@ export default function MoreScreen() {
         <Text style={styles.label}>💳 Chave PIX</Text>
         <TextInput
           style={styles.input}
-          placeholder="Sua chave PIX"
+          placeholder="A sua chave PIX"
           value={pix}
           onChangeText={setPix}
         />
@@ -212,30 +215,30 @@ export default function MoreScreen() {
         />
 
         <TouchableOpacity style={styles.botaoSalvarConfig} onPress={salvarConfiguracoes}>
-          <Text style={styles.textoSalvarConfig}>💾 Salvar Dados da Escola</Text>
+          <Text style={styles.textoSalvarConfig}>💾 Gravar Dados da Escola</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.subtitulo}>📊 Resumo</Text>
         <Text style={styles.info}>👨‍🏫 Total de Alunos: {alunos.length}</Text>
-        <Text style={styles.info}>💳 Pagamentos Registrados: {pagamentos.length}</Text>
-        <Text style={styles.infoInadimplentes}>⚠️ Alunos Inadimplentes: {alunosInadimplentes.length}</Text>
+        <Text style={styles.info}>💳 Pagamentos Registados: {pagamentos.length}</Text>
+        <Text style={styles.infoInadimplentes}>⚠️ Alunos em Atraso: {alunosInadimplentes.length}</Text>
       </View>
 
-      {/* 🔄 ÁREA DE SINCRONIZAÇÃO / BACKUP */}
+      {/* 🔄 SECÇÃO DE CÓPIA DE SEGURANÇA E SINCRONIZAÇÃO */}
       <View style={styles.card}>
-        <Text style={styles.subtitulo}>🔄 Sincronização e Backup</Text>
+        <Text style={styles.subtitulo}>🔄 Sincronização e Cópia de Segurança</Text>
         <Text style={styles.descricaoBackup}>
-          Exporte os dados cadastrados no celular e importe no computador para manter tudo igual em ambos.
+          Exporte os dados registados no telemóvel e importe no computador para manter ambos os dispositivos atualizados.
         </Text>
 
         <TouchableOpacity style={styles.botaoExportar} onPress={exportarBackup}>
-          <Text style={styles.botaoTexto}>📤 Exportar Dados (Baixar Backup)</Text>
+          <Text style={styles.botaoTexto}>📤 Exportar Dados (Descarregar Cópia)</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.botaoImportar} onPress={importarBackup}>
-          <Text style={styles.botaoTexto}>📥 Importar Dados (Restaurar no PC)</Text>
+          <Text style={styles.botaoTexto}>📥 Importar Dados (Restaurar Ficheiro)</Text>
         </TouchableOpacity>
       </View>
 
