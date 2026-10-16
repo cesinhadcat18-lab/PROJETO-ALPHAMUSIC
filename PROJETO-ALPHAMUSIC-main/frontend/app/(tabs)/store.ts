@@ -62,12 +62,12 @@ interface StoreState {
   setConfiguracoes: (dados: Partial<Configuracoes>) => Promise<void>;
   definirUsuarioLogado: (usuario: UsuarioLogado) => Promise<void>;
   limparUsuarioLogado: () => Promise<void>;
+  realizarLogin: (email: string, senha: string) => Promise<boolean>;
 
   carregarDados: () => Promise<void>;
   salvarTudo: () => Promise<void>;
 }
 
-// Auxiliar para salvar no LocalStorage (Web) e AsyncStorage (Mobile)
 const salvarLocal = async (chave: string, dados: any) => {
   try {
     const stringDados = JSON.stringify(dados);
@@ -80,7 +80,6 @@ const salvarLocal = async (chave: string, dados: any) => {
   }
 };
 
-// Auxiliar para ler do LocalStorage (Web) ou AsyncStorage (Mobile)
 const lerLocal = async (chave: string) => {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
@@ -131,11 +130,52 @@ export const useStore = create<StoreState>((set, get) => ({
     pix: "",
     banco: "",
   },
-  usuarioLogado: {
-    email: "cesinhadcat18@gmail.com",
-    logado: true,
-  },
+  usuarioLogado: null,
   carregando: false,
+
+  realizarLogin: async (email, senha) => {
+    const emailLimpo = email.trim().toLowerCase();
+    const senhaLimpa = senha.trim();
+
+    try {
+      const resp = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailLimpo, password: senhaLimpa }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const tokenRecebido = data.token || TOKEN_PADRAO;
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem("token", tokenRecebido);
+        }
+        await AsyncStorage.setItem("token", tokenRecebido);
+
+        const usuario = { email: emailLimpo, logado: true };
+        set({ usuarioLogado: usuario });
+        await salvarLocal("usuarioLogado", usuario);
+        return true;
+      }
+    } catch (e) {
+      console.log("Falha de conexão com a API, checando credenciais padrão...");
+    }
+
+    // Validação de fallback caso o Render demore a responder ou esteja hibernando
+    if (emailLimpo === "cesinhadcat18@gmail.com" && senhaLimpa === "123456") {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("token", TOKEN_PADRAO);
+      }
+      await AsyncStorage.setItem("token", TOKEN_PADRAO);
+
+      const usuario = { email: emailLimpo, logado: true };
+      set({ usuarioLogado: usuario });
+      await salvarLocal("usuarioLogado", usuario);
+      return true;
+    }
+
+    return false;
+  },
 
   adicionarAluno: async (aluno) => {
     let idGerado = Date.now().toString();
@@ -151,7 +191,7 @@ export const useStore = create<StoreState>((set, get) => ({
         if (data.id || data._id) idGerado = data.id || data._id;
       }
     } catch (e) {
-      console.log("API offline ou não autorizada, salvando local...");
+      console.log("Salvando local...");
     }
 
     const novoAluno = { ...aluno, id: idGerado };
@@ -239,7 +279,6 @@ export const useStore = create<StoreState>((set, get) => ({
   carregarDados: async () => {
     set({ carregando: true });
 
-    // 1. Carrega IMEDIATAMENTE do armazenamento local (nunca deixa a tela em branco)
     const alunosLocais = await lerLocal("alunos");
     const pagamentosLocais = await lerLocal("pagamentos");
     const configLocais = await lerLocal("configuracoes");
@@ -249,10 +288,9 @@ export const useStore = create<StoreState>((set, get) => ({
       alunos: Array.isArray(alunosLocais) ? alunosLocais : get().alunos,
       pagamentos: Array.isArray(pagamentosLocais) ? pagamentosLocais : get().pagamentos,
       configuracoes: configLocais ? { ...get().configuracoes, ...configLocais } : get().configuracoes,
-      usuarioLogado: usuarioLocal ? usuarioLocal : get().usuarioLogado,
+      usuarioLogado: usuarioLocal ? usuarioLocal : null,
     });
 
-    // 2. Tenta sincronizar com o backend em segundo plano se a API responder
     try {
       const headers = await obterHeadersAutenticados();
       const resp = await fetch(`${API_URL}/api/students`, {
