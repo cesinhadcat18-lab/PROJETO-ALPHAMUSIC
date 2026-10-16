@@ -122,6 +122,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: estilos.barra,
+        tabBarItemStyle: estilos.itemBarra,
         tabBarActiveTintColor: CORES.primaria,
         tabBarInactiveTintColor: CORES.textoCinza,
         tabBarLabelStyle: estilos.textoBarra,
@@ -136,8 +137,8 @@ export default function TabLayout() {
         name="index"
         options={{
           title: "Início",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="home-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="home-outline" size={20} color={color} />
           ),
         }}
       />
@@ -146,8 +147,8 @@ export default function TabLayout() {
         name="students"
         options={{
           title: "Alunos",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="people-outline" size={20} color={color} />
           ),
         }}
       />
@@ -156,8 +157,8 @@ export default function TabLayout() {
         name="agenda"
         options={{
           title: "Agenda",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="calendar-outline" size={20} color={color} />
           ),
         }}
       />
@@ -166,8 +167,8 @@ export default function TabLayout() {
         name="finance"
         options={{
           title: "Pagamentos",
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="cash-multiple" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <MaterialCommunityIcons name="cash-multiple" size={20} color={color} />
           ),
         }}
       />
@@ -176,8 +177,8 @@ export default function TabLayout() {
         name="more"
         options={{
           title: "Mais",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="settings-outline" size={20} color={color} />
           ),
         }}
       />
@@ -192,22 +193,26 @@ export default function TabLayout() {
 const estilos = StyleSheet.create({
   barra: {
     backgroundColor: CORES.fundoCard,
-    borderTopWidth: 0,
-    minHeight: 65,
-    height: Platform.OS === "web" ? 65 : 75,
-    paddingBottom: Platform.OS === "web" ? 6 : 14,
-    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    height: 84,
+    paddingTop: 8,
+    paddingBottom: 22,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 10,
   },
+  itemBarra: {
+    paddingVertical: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   textoBarra: {
     fontSize: 11,
     fontWeight: "600",
-    marginTop: 2,
-    marginBottom: 4,
+    marginTop: 4,
   },
   cabecalho: {
     backgroundColor: CORES.fundoEscuro,
