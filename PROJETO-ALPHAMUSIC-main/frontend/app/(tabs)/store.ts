@@ -64,6 +64,28 @@ interface StoreState {
   salvarTudo: () => Promise<void>;
 }
 
+const obterHeadersAutenticados = async () => {
+  let token = null;
+  try {
+    token = await AsyncStorage.getItem("token");
+    if (!token && typeof window !== "undefined" && window.localStorage) {
+      token = window.localStorage.getItem("token");
+    }
+  } catch (e) {
+    console.log("Erro ao recuperar token:", e);
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  return headers;
+};
+
 const salvarNoStorage = async (chave: string, dados: any) => {
   try {
     await AsyncStorage.setItem(chave, JSON.stringify(dados));
@@ -87,9 +109,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   adicionarAluno: async (aluno) => {
     try {
+      const headers = await obterHeadersAutenticados();
       const resp = await fetch(`${API_URL}/api/students`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(aluno),
       });
       const data = await resp.json();
@@ -107,9 +130,10 @@ export const useStore = create<StoreState>((set, get) => ({
 
   editarAluno: async (id, dados) => {
     try {
+      const headers = await obterHeadersAutenticados();
       await fetch(`${API_URL}/api/students/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(dados),
       });
     } catch (e) {
@@ -122,7 +146,15 @@ export const useStore = create<StoreState>((set, get) => ({
 
   excluirAluno: async (id) => {
     try {
-      await fetch(`${API_URL}/api/students/${id}`, { method: "DELETE" });
+      const headers = await obterHeadersAutenticados();
+      const resp = await fetch(`${API_URL}/api/students/${id}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!resp.ok) {
+        console.warn("Falha na exclusão remota, status:", resp.status);
+      }
     } catch (e) {
       console.log("Erro ao excluir no servidor:", e);
     }
@@ -158,12 +190,19 @@ export const useStore = create<StoreState>((set, get) => ({
   limparUsuarioLogado: async () => {
     set({ usuarioLogado: null });
     await AsyncStorage.removeItem("usuarioLogado");
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem("token");
+    }
   },
 
   carregarDados: async () => {
     set({ carregando: true });
     try {
-      const resp = await fetch(`${API_URL}/api/students`);
+      const headers = await obterHeadersAutenticados();
+      const resp = await fetch(`${API_URL}/api/students`, {
+        method: "GET",
+        headers,
+      });
       if (resp.ok) {
         const dadosRemotos = await resp.json();
         if (Array.isArray(dadosRemotos) && dadosRemotos.length > 0) {
@@ -178,13 +217,6 @@ export const useStore = create<StoreState>((set, get) => ({
           if (localAlunos) {
             const parsed = JSON.parse(localAlunos);
             set({ alunos: parsed });
-            for (const item of parsed) {
-              await fetch(`${API_URL}/api/students`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(item),
-              }).catch(() => null);
-            }
           }
         }
       }
