@@ -6,7 +6,7 @@ const DIAS = [
   { chave: "TER", nome: "TER" },
   { chave: "QUA", nome: "QUA" },
   { chave: "QUI", nome: "QUI" },
-  { chave: "SEX", nome: "SEXT" },
+  { chave: "SEX", nome: "SEX" },
   { chave: "SAB", nome: "SAB" },
 ];
 
@@ -25,7 +25,7 @@ const TIPOS_AULA_ICONE: { [key: string]: string } = {
   guitarra: "🎸",
 };
 
-const DIAS_ORDEM = ["SEG", "TER", "QUA", "QUI", "SEXT", "SAB"];
+const DIAS_ORDEM = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB"];
 
 const normalizarHora = (horario: string) => {
   if (!horario) return "";
