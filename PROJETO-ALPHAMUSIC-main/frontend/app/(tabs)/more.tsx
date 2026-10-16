@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView, Platform } from "react-native";
 import { useStore } from "./store";
 import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function MoreScreen() {
   const { alunos, pagamentos, limparUsuarioLogado, configuracoes, setConfiguracoes, carregarDados } = useStore();
@@ -44,6 +45,79 @@ export default function MoreScreen() {
     avisar("✅ Sucesso!", "Dados da escola salvos!");
   };
 
+  // 📤 EXPORTAR BACKUP (Gera download do arquivo JSON)
+  const exportarBackup = async () => {
+    try {
+      const state = useStore.getState();
+      const dadosCompletos = {
+        alunos: state.alunos,
+        pagamentos: state.pagamentos,
+        configuracoes: state.configuracoes,
+        dataBackup: new Date().toISOString(),
+      };
+
+      const jsonString = JSON.stringify(dadosCompletos, null, 2);
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `backup_alphamusic_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        avisar("✅ Sucesso!", "Arquivo de backup baixado! Envie-o para o computador.");
+      } else {
+        avisar("Backup", "Recurso disponível no navegador.");
+      }
+    } catch (e) {
+      avisar("❌ Erro", "Não foi possível gerar o backup.");
+    }
+  };
+
+  // 📥 IMPORTAR BACKUP (Lê o arquivo JSON e atualiza tudo)
+  const importarBackup = () => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json";
+      input.onchange = async (event: any) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e: any) => {
+          try {
+            const dados = JSON.parse(e.target.result);
+
+            if (dados.alunos && Array.isArray(dados.alunos)) {
+              if (window.localStorage) {
+                window.localStorage.setItem("alunos", JSON.stringify(dados.alunos));
+                window.localStorage.setItem("pagamentos", JSON.stringify(dados.pagamentos || []));
+                window.localStorage.setItem("configuracoes", JSON.stringify(dados.configuracoes || {}));
+              }
+              await AsyncStorage.setItem("alunos", JSON.stringify(dados.alunos));
+              await AsyncStorage.setItem("pagamentos", JSON.stringify(dados.pagamentos || []));
+              await AsyncStorage.setItem("configuracoes", JSON.stringify(dados.configuracoes || {}));
+
+              await carregarDados();
+              avisar("✅ Sucesso!", "Dados sincronizados com sucesso!");
+              window.location.reload();
+            } else {
+              avisar("❌ Erro", "Arquivo de backup inválido.");
+            }
+          } catch (err) {
+            avisar("❌ Erro", "Falha ao processar o arquivo de backup.");
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+  };
+
   const alunosInadimplentes = alunos.filter((aluno) => {
     const ultimoPagamento = pagamentos
       .filter((p) => (p.aluno || "").trim().toLowerCase() === (aluno.nome || "").trim().toLowerCase())
@@ -69,7 +143,7 @@ export default function MoreScreen() {
       const confirmou = window.confirm("Tem certeza que deseja sair?");
       if (confirmou) {
         await limparUsuarioLogado();
-        alert("✅ Você saiu!");
+        window.location.reload();
       }
     } else {
       Alert.alert(
@@ -82,7 +156,6 @@ export default function MoreScreen() {
             style: "destructive",
             onPress: async () => {
               await limparUsuarioLogado();
-              Alert.alert("✅ Você saiu!");
             },
           },
         ]
@@ -150,6 +223,22 @@ export default function MoreScreen() {
         <Text style={styles.infoInadimplentes}>⚠️ Alunos Inadimplentes: {alunosInadimplentes.length}</Text>
       </View>
 
+      {/* 🔄 ÁREA DE SINCRONIZAÇÃO / BACKUP */}
+      <View style={styles.card}>
+        <Text style={styles.subtitulo}>🔄 Sincronização e Backup</Text>
+        <Text style={styles.descricaoBackup}>
+          Exporte os dados cadastrados no celular e importe no computador para manter tudo igual em ambos.
+        </Text>
+
+        <TouchableOpacity style={styles.botaoExportar} onPress={exportarBackup}>
+          <Text style={styles.botaoTexto}>📤 Exportar Dados (Baixar Backup)</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.botaoImportar} onPress={importarBackup}>
+          <Text style={styles.botaoTexto}>📥 Importar Dados (Restaurar no PC)</Text>
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity style={[styles.botao, styles.botaoSair]} onPress={fazerLogout}>
         <Text style={styles.botaoTexto}>🚪 Sair da Conta</Text>
       </TouchableOpacity>
@@ -186,6 +275,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 15,
     color: "#444",
+  },
+  descricaoBackup: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 15,
+    lineHeight: 18,
   },
   label: {
     fontSize: 14,
@@ -225,8 +320,21 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 5,
   },
-  botao: {
+  botaoExportar: {
     backgroundColor: "#2E86AB",
+    padding: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  botaoImportar: {
+    backgroundColor: "#8E44AD",
+    padding: 14,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  botao: {
     padding: 16,
     borderRadius: 8,
     alignItems: "center",
@@ -237,7 +345,7 @@ const styles = StyleSheet.create({
   },
   botaoTexto: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
   },
 });
