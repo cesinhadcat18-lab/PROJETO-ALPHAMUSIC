@@ -158,6 +158,11 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   excluirAluno: async (id) => {
+    // 1. Identifica o aluno para saber o nome dele antes de remover
+    const alunoAlvo = get().alunos.find((a) => a.id === id);
+    const nomeAluno = alunoAlvo ? alunoAlvo.nome.trim().toLowerCase() : "";
+
+    // 2. Tenta remover na API remota
     try {
       const headers = await obterHeadersAutenticados();
       const resp = await fetch(`${API_URL}/api/students/${id}`, {
@@ -171,9 +176,25 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       console.log("Erro ao excluir no servidor:", e);
     }
-    const novaLista = get().alunos.filter((a) => a.id !== id);
-    set({ alunos: novaLista });
-    await salvarNoStorage("alunos", novaLista);
+
+    // 3. Remove o aluno da lista de alunos
+    const novaListaAlunos = get().alunos.filter((a) => a.id !== id);
+
+    // 4. Remove em cascata todos os pagamentos vinculados ao aluno (por ID ou nome)
+    const novaListaPagamentos = get().pagamentos.filter((p) => {
+      if (p.aluno === id) return false;
+      if (nomeAluno && p.aluno && p.aluno.trim().toLowerCase() === nomeAluno) return false;
+      return true;
+    });
+
+    // 5. Atualiza o estado da aplicação e sincroniza com o LocalStorage/AsyncStorage
+    set({
+      alunos: novaListaAlunos,
+      pagamentos: novaListaPagamentos,
+    });
+
+    await salvarNoStorage("alunos", novaListaAlunos);
+    await salvarNoStorage("pagamentos", novaListaPagamentos);
   },
 
   registrarPagamento: async (pagamento) => {
