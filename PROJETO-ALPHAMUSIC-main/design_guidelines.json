@@ -1,0 +1,205 @@
+{
+  "app_name": "Gestão Musical",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A calm, highly organized, and professional daily companion for a music teacher, treating dense financial and scheduling data with breathing room and clarity.",
+  "color": {
+    "light": {
+      "surface": "#F8FAFC",
+      "onSurface": "#0F172A",
+      "surfaceSecondary": "#FFFFFF",
+      "onSurfaceSecondary": "#1E293B",
+      "surfaceTertiary": "#F1F5F9",
+      "onSurfaceTertiary": "#334155",
+      "surfaceInverse": "#0F172A",
+      "onSurfaceInverse": "#FFFFFF",
+      "brand": "#0D9488",
+      "brandPrimary": "#0F766E",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#14B8A6",
+      "onBrandSecondary": "#FFFFFF",
+      "brandTertiary": "#CCFBF1",
+      "onBrandTertiary": "#0F766E",
+      "success": "#059669",
+      "onSuccess": "#FFFFFF",
+      "warning": "#D97706",
+      "onWarning": "#FFFFFF",
+      "error": "#DC2626",
+      "onError": "#FFFFFF",
+      "info": "#0284C7",
+      "onInfo": "#FFFFFF",
+      "border": "#E2E8F0",
+      "borderStrong": "#CBD5E1",
+      "divider": "#F1F5F9",
+      "muted": "#64748B"
+    },
+    "dark": {
+      "surface": "#0F172A",
+      "onSurface": "#F8FAFC",
+      "surfaceSecondary": "#1E293B",
+      "onSurfaceSecondary": "#F1F5F9",
+      "surfaceTertiary": "#334155",
+      "onSurfaceTertiary": "#E2E8F0",
+      "surfaceInverse": "#F8FAFC",
+      "onSurfaceInverse": "#0F172A",
+      "brand": "#0D9488",
+      "brandPrimary": "#14B8A6",
+      "onBrandPrimary": "#0F172A",
+      "brandSecondary": "#2DD4BF",
+      "onBrandSecondary": "#0F172A",
+      "brandTertiary": "#042F2E",
+      "onBrandTertiary": "#5EEAD4",
+      "success": "#10B981",
+      "onSuccess": "#022C22",
+      "warning": "#F59E0B",
+      "onWarning": "#451A03",
+      "error": "#EF4444",
+      "onError": "#450A0A",
+      "info": "#38BDF8",
+      "onInfo": "#082F49",
+      "border": "#334155",
+      "borderStrong": "#475569",
+      "divider": "#1E293B",
+      "muted": "#94A3B8"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room for dense CRM data. Use md (12pt) and lg (16pt) around container items. No elements flush to screen edge; cards must have at least md margin.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Apply to bottom tab bar when content scrolls behind",
+      "Apply to sticky headers (like calendar month headers or section sticky filters)",
+      "Apply to primary CTA containers at the bottom of forms/screens",
+      "Ensure text over glass has an underlying tinted base (opacity >= 70% of surface) for readability"
+    ],
+    "dont's": [
+      "Do not apply to every card in the dashboard or student list",
+      "Do not use behind form fields or dense text regions"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "haptics": {
+    "tab_press": "light",
+    "button_press": "medium",
+    "switch_toggle": "light",
+    "pull_to_refresh": "medium",
+    "payment_confirm": "success",
+    "warning_alert": "warning"
+  },
+  "screens": [
+    {
+      "name": "Dashboard (Início)",
+      "purpose": "Provides a quick daily operational overview of active students, today's schedule, and pending payments.",
+      "states": {
+        "loading": "Skeleton UI for metrics and list",
+        "empty": "Illustration for 'No classes today' and 'All payments clear'",
+        "error": "Failed to load dashboard data + retry CTA"
+      },
+      "layout": "Scrollable view. Top section: High-level metric cards (Active Students, Monthly Revenue, Pending) in a horizontal scroll or 2-col grid. Middle section: 'Today's Classes' list module with visual timeline indicators. Bottom section: Alerts module (Upcoming 5th week, Holidays in Sergipe/Itabaiana, Pending PIX payments)."
+    },
+    {
+      "name": "Alunos",
+      "purpose": "A searchable CRM list of all students and their detailed multi-tab profiles.",
+      "states": {
+        "loading": "List skeleton",
+        "empty": "Empty desk illustration + 'No students registered yet' + Add Student CTA",
+        "error": "Failed to load students list"
+      },
+      "layout": "Screen 1: Search bar + list of student rows (Avatar, Name, active/defaulter status badge). Screen 2 (Profile Detail): Top hero profile banner with photo and quick action buttons (WhatsApp, Edit). Below: Tabbed navigation (Dados, Aulas, Financeiro, Observações). Fixed 'Nova Aula' or 'Receber Pagamento' CTA at bottom."
+    },
+    {
+      "name": "Agenda",
+      "purpose": "Full calendar view to manage classes, highlighting 5th weeks and local holidays.",
+      "states": {
+        "loading": "Calendar spinner",
+        "empty": "Select a day to see classes.",
+        "error": "Failed to sync calendar"
+      },
+      "layout": "Visual Calendar module on top (Month/Week toggle). Dates with classes have indicator dots. 5th-week occurrences are highlighted with `warning` or `brandTertiary` background. Below calendar: Vertical scroll of that day's classes with drag-and-drop affordances or simple tap-to-edit. Local holidays explicitly tagged."
+    },
+    {
+      "name": "Financeiro",
+      "purpose": "Financial command center to track expected, received, and delayed tuition with PIX integration.",
+      "states": {
+        "loading": "Metrics skeleton",
+        "empty": "No financial records for this period.",
+        "error": "Failed to load financial data"
+      },
+      "layout": "Segmented control at top (Previsto, Recebido, Pendente, Atrasado). Summary card showing total for selected segment. List of payment cards. Tapping a payment opens a modal to generate PIX QR Code / copy-paste string, or register manual payment. 'Inadimplentes' (Defaulters) highlighted with `error` accents."
+    },
+    {
+      "name": "Mais (Configurações)",
+      "purpose": "School settings, PIX key configuration, and exporting reports.",
+      "states": {
+        "loading": "Spinner",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "iOS-style settings list grouped by section. Group 1: Escola (PIX Key, CNPJ, Bank info). Group 2: Relatórios (Export PDF/CSV). Group 3: App (Push Notifications toggle, Auth/Logout)."
+    }
+  ],
+  "images": {
+    "login_bg": {
+      "url": "https://images.pexels.com/photos/23153025/pexels-photo-23153025.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Acoustic guitar leaning against a green wall, used as a subtle login background"
+    },
+    "student_placeholder": {
+      "url": "https://images.pexels.com/photos/38245944/pexels-photo-38245944.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Smiling student portrait"
+    },
+    "empty_schedule": {
+      "url": "https://images.pexels.com/photos/8092402/pexels-photo-8092402.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Empty desk setup with calendar for empty states"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the '1 iOS-Native Clean' personality. Do not mix with Brutalist or Material styles.",
+    "Use the brand tokens (`#0D9488` Teal family) consistently. AVOID ANY BLUE OR PURPLE as per the no-tolerance rules. Rely on the provided surface/brand hexes.",
+    "Implement the bottom tab bar with 5 items (Início, Alunos, Agenda, Financeiro, Mais) using Ionicons. Ensure a glassmorphism effect is applied to the tab bar when scrolling.",
+    "In the Dashboard and Student Profile screens, always respect the Safe Area and use generously spaced layout with `md` (12pt) and `lg` (16pt) gaps.",
+    "For text placed over images (e.g., the login background), implement the mandatory gradient-to-dark scrim pattern (top to bottom, transparent to >=70% surfaceInverse) to ensure text contrast.",
+    "Integrate Phosphor or Ionicons uniformly; avoid mixing icon families and ensure the weight is consistent (e.g., all outlined inactive, filled active for tabs).",
+    "For the PIX flow, use standard action sheets or bottom sheets to present the QR code and copy-paste key options. Ensure there's a quick 'WhatsApp' share button in the student detail.",
+    "When displaying the Calendar, visually differentiate the 5th occurrence of a weekday in a month, as well as state/national holidays (Sergipe/Itabaiana), using `brandTertiary` or `warning` subtle backgrounds.",
+    "Haptics: Ensure the Dev Agent wires haptics directly using the event map provided."
+  ]
+}
