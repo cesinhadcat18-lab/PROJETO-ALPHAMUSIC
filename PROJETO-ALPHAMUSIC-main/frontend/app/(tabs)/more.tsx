@@ -1,55 +1,56 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, TextInput, ScrollView, Platform } from "react-native";
 import { useStore } from "./store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React from "react";
-
-// ✅ Função para SALVAR TODOS OS DADOS
-const salvarTodosOsDados = async () => {
-  try {
-    const { alunos, pagamentos, configuracoes } = useStore.getState();
-
-    await AsyncStorage.setItem("alunos", JSON.stringify(alunos));
-    await AsyncStorage.setItem("pagamentos", JSON.stringify(pagamentos));
-    await AsyncStorage.setItem("configuracoes", JSON.stringify(configuracoes));
-
-    console.log("✅ Dados salvos com sucesso!");
-    return true;
-  } catch (erro) {
-    console.log("❌ Erro ao salvar:", erro);
-    return false;
-  }
-};
+import React, { useState, useEffect } from "react";
 
 export default function MoreScreen() {
-  const { alunos, pagamentos, limparUsuarioLogado, configuracoes, setConfiguracoes } = useStore();
+  const { alunos, pagamentos, limparUsuarioLogado, configuracoes, setConfiguracoes, carregarDados } = useStore();
 
-  // Estados locais para os campos de configuração
-  const [nomeEscola, setNomeEscola] = React.useState(configuracoes.nomeEscola);
-  const [responsavel, setResponsavel] = React.useState(configuracoes.responsavel || "");
-  const [contato, setContato] = React.useState(configuracoes.contato || "");
-  const [pix, setPix] = React.useState(configuracoes.pix || "");
-  const [banco, setBanco] = React.useState(configuracoes.banco || "");
+  const [nomeEscola, setNomeEscola] = useState(configuracoes?.nomeEscola || "");
+  const [responsavel, setResponsavel] = useState(configuracoes?.responsavel || "");
+  const [contato, setContato] = useState(configuracoes?.contato || "");
+  const [pix, setPix] = useState(configuracoes?.pix || "");
+  const [banco, setBanco] = useState(configuracoes?.banco || "");
 
-  // Atualiza os dados no store quando o usuário salva
-  const salvarConfiguracoes = () => {
-    setConfiguracoes({
-      nomeEscola,
-      responsavel,
-      contato,
-      pix,
-      banco,
-    });
-    Alert.alert("✅ Sucesso!", "Dados da escola salvos!");
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  useEffect(() => {
+    if (configuracoes) {
+      setNomeEscola(configuracoes.nomeEscola || "");
+      setResponsavel(configuracoes.responsavel || "");
+      setContato(configuracoes.contato || "");
+      setPix(configuracoes.pix || "");
+      setBanco(configuracoes.banco || "");
+    }
+  }, [configuracoes]);
+
+  const avisar = (titulo: string, msg: string) => {
+    if (Platform.OS === "web") {
+      alert(`${titulo} ${msg}`);
+    } else {
+      Alert.alert(titulo, msg);
+    }
   };
 
-  // ✅ Calcula inadimplentes
+  const salvarConfiguracoes = async () => {
+    await setConfiguracoes({
+      nomeEscola: nomeEscola.trim(),
+      responsavel: responsavel.trim(),
+      contato: contato.trim(),
+      pix: pix.trim(),
+      banco: banco.trim(),
+    });
+    avisar("✅ Sucesso!", "Dados da escola salvos!");
+  };
+
   const alunosInadimplentes = alunos.filter((aluno) => {
     const ultimoPagamento = pagamentos
-      .filter((p) => p.aluno === aluno.nome)
+      .filter((p) => (p.aluno || "").trim().toLowerCase() === (aluno.nome || "").trim().toLowerCase())
       .sort((a, b) => {
         const dataA = a.dataPagamento.split("/").reverse().join("-");
         const dataB = b.dataPagamento.split("/").reverse().join("-");
-        return new Date(dataB) - new Date(dataA);
+        return new Date(dataB).getTime() - new Date(dataA).getTime();
       })[0];
 
     if (!ultimoPagamento) return true;
@@ -63,22 +64,30 @@ export default function MoreScreen() {
     return mesesPassados >= 2;
   });
 
-  const fazerLogout = () => {
-    Alert.alert(
-      "Sair da conta",
-      "Tem certeza que deseja sair?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Sair",
-          style: "destructive",
-          onPress: () => {
-            limparUsuarioLogado();
-            Alert.alert("✅ Você saiu!");
+  const fazerLogout = async () => {
+    if (Platform.OS === "web") {
+      const confirmou = window.confirm("Tem certeza que deseja sair?");
+      if (confirmou) {
+        await limparUsuarioLogado();
+        alert("✅ Você saiu!");
+      }
+    } else {
+      Alert.alert(
+        "Sair da conta",
+        "Tem certeza que deseja sair?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Sair",
+            style: "destructive",
+            onPress: async () => {
+              await limparUsuarioLogado();
+              Alert.alert("✅ Você saiu!");
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   return (
@@ -141,16 +150,6 @@ export default function MoreScreen() {
         <Text style={styles.infoInadimplentes}>⚠️ Alunos Inadimplentes: {alunosInadimplentes.length}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.botao}
-        onPress={async () => {
-          const ok = await salvarTodosOsDados();
-          Alert.alert(ok ? "✅ Sucesso!" : "❌ Erro", ok ? "Dados salvos!" : "Não foi possível salvar.");
-        }}
-      >
-        <Text style={styles.botaoTexto}>💾 Salvar Dados Manualmente</Text>
-      </TouchableOpacity>
-
       <TouchableOpacity style={[styles.botao, styles.botaoSair]} onPress={fazerLogout}>
         <Text style={styles.botaoTexto}>🚪 Sair da Conta</Text>
       </TouchableOpacity>
@@ -205,7 +204,7 @@ const styles = StyleSheet.create({
   },
   botaoSalvarConfig: {
     backgroundColor: "#27AE60",
-    padding: 12,
+    padding: 14,
     borderRadius: 8,
     alignItems: "center",
     marginTop: 15,
