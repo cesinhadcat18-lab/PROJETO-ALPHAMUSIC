@@ -1,4 +1,3 @@
-
 import { Tabs } from "expo-router";
 import {
   StyleSheet,
@@ -45,7 +44,7 @@ export default function TabLayout() {
   const handleEntrar = async () => {
     setErro("");
     if (!email.trim() || !senha.trim()) {
-      setErro("Preencha o e-mail e a palavra-passe!");
+      setErro("Preencha o e-mail e a senha!");
       return;
     }
 
@@ -54,11 +53,11 @@ export default function TabLayout() {
     setCarregando(false);
 
     if (!sucesso) {
-      setErro("E-mail ou palavra-passe incorretos!");
+      setErro("E-mail ou senha incorretos!");
     }
   };
 
-  // 🔒 SE NÃO ESTIVER AUTENTICADO: Exibe o Ecrã de Login
+  // 🔒 TELA DE LOGIN: Exibida quando não autenticado
   if (!usuarioLogado || !usuarioLogado.logado) {
     return (
       <KeyboardAvoidingView
@@ -78,7 +77,7 @@ export default function TabLayout() {
           <Text style={estilosLogin.label}>E-mail de Acesso</Text>
           <TextInput
             style={estilosLogin.input}
-            placeholder="Digite o seu e-mail"
+            placeholder="Digite seu e-mail"
             placeholderTextColor="#9CA3AF"
             value={email}
             onChangeText={(txt) => {
@@ -89,10 +88,10 @@ export default function TabLayout() {
             autoCapitalize="none"
           />
 
-          <Text style={estilosLogin.label}>Palavra-passe</Text>
+          <Text style={estilosLogin.label}>Senha</Text>
           <TextInput
             style={estilosLogin.input}
-            placeholder="Digite a sua palavra-passe"
+            placeholder="Digite sua senha"
             placeholderTextColor="#9CA3AF"
             value={senha}
             onChangeText={(txt) => {
@@ -118,7 +117,7 @@ export default function TabLayout() {
     );
   }
 
-  // 🔓 SE ESTIVER AUTENTICADO: Exibe a Navegação por Abas
+  // 🔓 NAVEGAÇÃO POR ABAS: Exibida após autenticação
   return (
     <Tabs
       screenOptions={{
@@ -183,7 +182,7 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ❌ ESCONDIDOS — continuam nos arquivos, mas NÃO aparecem na barra */}
+      {/* Telas auxiliares ocultas da barra */}
       <Tabs.Screen name="store" options={{ href: null }} />
       <Tabs.Screen name="inicializacao" options={{ href: null }} />
     </Tabs>
@@ -194,9 +193,10 @@ const estilos = StyleSheet.create({
   barra: {
     backgroundColor: CORES.fundoCard,
     borderTopWidth: 0,
-    height: 70,
-    paddingBottom: 12,
-    paddingTop: 10,
+    minHeight: 65,
+    height: Platform.OS === "web" ? 65 : 75,
+    paddingBottom: Platform.OS === "web" ? 6 : 14,
+    paddingTop: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
@@ -204,9 +204,10 @@ const estilos = StyleSheet.create({
     elevation: 10,
   },
   textoBarra: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 4,
   },
   cabecalho: {
     backgroundColor: CORES.fundoEscuro,
