@@ -1,6 +1,18 @@
+
 import { Tabs } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useState, useEffect } from "react";
+import { useStore } from "./store";
 
 // ✅ TEMA — Cores profissionais para Escola de Música
 const CORES = {
@@ -16,9 +28,97 @@ const CORES = {
   borda: "#E5E7EB",
   sucesso: "#10B981",
   alerta: "#F59E0B",
+  erro: "#EF4444",
 };
 
 export default function TabLayout() {
+  const { usuarioLogado, realizarLogin, carregarDados } = useStore();
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  const handleEntrar = async () => {
+    setErro("");
+    if (!email.trim() || !senha.trim()) {
+      setErro("Preencha o e-mail e a palavra-passe!");
+      return;
+    }
+
+    setCarregando(true);
+    const sucesso = await realizarLogin(email, senha);
+    setCarregando(false);
+
+    if (!sucesso) {
+      setErro("E-mail ou palavra-passe incorretos!");
+    }
+  };
+
+  // 🔒 SE NÃO ESTIVER AUTENTICADO: Exibe o Ecrã de Login
+  if (!usuarioLogado || !usuarioLogado.logado) {
+    return (
+      <KeyboardAvoidingView
+        style={estilosLogin.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={estilosLogin.card}>
+          <View style={estilosLogin.iconeCirculo}>
+            <Ionicons name="musical-notes" size={40} color={CORES.primaria} />
+          </View>
+
+          <Text style={estilosLogin.titulo}>Alpha Music</Text>
+          <Text style={estilosLogin.subtitulo}>Acesso Restrito ao Sistema</Text>
+
+          {erro ? <Text style={estilosLogin.textoErro}>⚠️ {erro}</Text> : null}
+
+          <Text style={estilosLogin.label}>E-mail de Acesso</Text>
+          <TextInput
+            style={estilosLogin.input}
+            placeholder="Digite o seu e-mail"
+            placeholderTextColor="#9CA3AF"
+            value={email}
+            onChangeText={(txt) => {
+              setEmail(txt);
+              setErro("");
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <Text style={estilosLogin.label}>Palavra-passe</Text>
+          <TextInput
+            style={estilosLogin.input}
+            placeholder="Digite a sua palavra-passe"
+            placeholderTextColor="#9CA3AF"
+            value={senha}
+            onChangeText={(txt) => {
+              setSenha(txt);
+              setErro("");
+            }}
+            secureTextEntry
+          />
+
+          <TouchableOpacity
+            style={estilosLogin.botao}
+            onPress={handleEntrar}
+            disabled={carregando}
+          >
+            {carregando ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={estilosLogin.botaoTexto}>Entrar no Sistema</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // 🔓 SE ESTIVER AUTENTICADO: Exibe a Navegação por Abas
   return (
     <Tabs
       screenOptions={{
@@ -33,7 +133,6 @@ export default function TabLayout() {
         contentStyle: estilos.conteudoTela,
       }}
     >
-      {/* ✅ Tela Início — visível na barra */}
       <Tabs.Screen
         name="index"
         options={{
@@ -44,7 +143,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ✅ Alunos */}
       <Tabs.Screen
         name="students"
         options={{
@@ -55,7 +153,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ✅ Agenda */}
       <Tabs.Screen
         name="agenda"
         options={{
@@ -66,7 +163,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ✅ Financeiro */}
       <Tabs.Screen
         name="finance"
         options={{
@@ -77,7 +173,6 @@ export default function TabLayout() {
         }}
       />
 
-      {/* ✅ Mais */}
       <Tabs.Screen
         name="more"
         options={{
@@ -129,6 +224,94 @@ const estilos = StyleSheet.create({
   },
   conteudoTela: {
     backgroundColor: CORES.fundoTela,
+  },
+});
+
+const estilosLogin = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: CORES.fundoEscuro,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  card: {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: CORES.fundoCard,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  iconeCirculo: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#F3EAF9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  titulo: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: CORES.fundoEscuro,
+    marginBottom: 4,
+  },
+  subtitulo: {
+    fontSize: 14,
+    color: CORES.textoCinza,
+    marginBottom: 20,
+  },
+  textoErro: {
+    color: CORES.erro,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  label: {
+    alignSelf: "flex-start",
+    fontSize: 13,
+    fontWeight: "600",
+    color: CORES.textoEscuro,
+    marginBottom: 6,
+    marginTop: 10,
+  },
+  input: {
+    width: "100%",
+    height: 48,
+    borderWidth: 1,
+    borderColor: CORES.borda,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    backgroundColor: "#F9FAFB",
+    color: CORES.textoEscuro,
+  },
+  botao: {
+    width: "100%",
+    height: 50,
+    backgroundColor: CORES.primaria,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 24,
+    shadowColor: CORES.primaria,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  botaoTexto: {
+    color: CORES.textoClaro,
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 
