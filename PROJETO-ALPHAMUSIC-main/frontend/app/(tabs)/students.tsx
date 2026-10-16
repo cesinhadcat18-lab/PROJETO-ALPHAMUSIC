@@ -23,7 +23,8 @@ export default function StudentsScreen() {
   const { alunos, adicionarAluno, editarAluno, excluirAluno, configuracoes, carregarDados } = useStore();
 
   const [nome, setNome] = useState("");
-  const [valorMensalidade, setValorMensalidade] = useState("");
+  // 💰 Valor padrão já configurado em 200,00 (editável a qualquer momento)
+  const [valorMensalidade, setValorMensalidade] = useState("200,00");
   const [dataVencimento, setDataVencimento] = useState("");
   const [diaSemana, setDiaSemana] = useState("");
   const [horarioAula, setHorarioAula] = useState("");
@@ -36,6 +37,18 @@ export default function StudentsScreen() {
   useEffect(() => {
     carregarDados();
   }, []);
+
+  // 📅 Máscara automática para formato DD/MM/AAAA
+  const formatarDataInput = (texto: string) => {
+    const limpo = texto.replace(/[^0-9]/g, "").slice(0, 8);
+    if (limpo.length <= 2) {
+      return limpo;
+    }
+    if (limpo.length <= 4) {
+      return `${limpo.slice(0, 2)}/${limpo.slice(2)}`;
+    }
+    return `${limpo.slice(0, 2)}/${limpo.slice(2, 4)}/${limpo.slice(4)}`;
+  };
 
   const formatarMoeda = (valor: any) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(valor) || 0);
@@ -79,7 +92,7 @@ ${configuracoes?.nomeEscola || "Alpha Music"}`;
   const cancelarEdicao = () => {
     setAlunoEmEdicao(null);
     setNome("");
-    setValorMensalidade("");
+    setValorMensalidade("200,00");
     setDataVencimento("");
     setDiaSemana("");
     setHorarioAula("");
@@ -105,7 +118,7 @@ ${configuracoes?.nomeEscola || "Alpha Music"}`;
     if (!horarioAula.trim()) return avisar("⚠️", "Digite o horário!");
     if (!tipoAula) return avisar("⚠️", "Selecione o tipo de aula!");
 
-    const valorNumerico = parseFloat(valorMensalidade.replace(",", ".")) || 0;
+    const valorNumerico = parseFloat(valorMensalidade.replace(/\./g, "").replace(",", ".")) || 0;
 
     if (alunoEmEdicao) {
       await editarAluno(alunoEmEdicao, {
@@ -221,8 +234,10 @@ ${configuracoes?.nomeEscola || "Alpha Music"}`;
         <TextInput
           style={styles.input}
           placeholder="DD/MM/AAAA"
+          keyboardType="numeric"
+          maxLength={10}
           value={dataVencimento}
-          onChangeText={setDataVencimento}
+          onChangeText={(texto) => setDataVencimento(formatarDataInput(texto))}
         />
 
         <Text style={styles.label}>📞 Telefone do Aluno</Text>
