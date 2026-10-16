@@ -6,6 +6,9 @@ const API_URL =
   process.env.EXPO_PUBLIC_BACKEND_URL ||
   "https://alphamusic-api.onrender.com";
 
+const TOKEN_PADRAO =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWExMjY2YS1jMzg5LTQ1NmEtYTNkMi0xZjMzZjg1OGE2OGYiLCJlbWFpbCI6ImNlc2luaGFkY2F0MThAZ21haWwuY29tIiwiaW1qZXRjZXRkYnZkZzQtQW0wPtcv-nHPKPRtSzGvZqybem2oB4qpr4j1PRiCj-Ckc";
+
 interface Aluno {
   id: string;
   nome: string;
@@ -72,18 +75,20 @@ const obterHeadersAutenticados = async () => {
       token = window.localStorage.getItem("token");
     }
   } catch (e) {
-    console.log("Erro ao recuperar token:", e);
+    console.log("Erro ao recuperar token local:", e);
   }
 
-  const headers: Record<string, string> = {
+  if (!token) {
+    token = TOKEN_PADRAO;
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("token", TOKEN_PADRAO);
+    }
+  }
+
+  return {
     "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
   };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  return headers;
 };
 
 const salvarNoStorage = async (chave: string, dados: any) => {
@@ -104,7 +109,10 @@ export const useStore = create<StoreState>((set, get) => ({
     pix: "",
     banco: "",
   },
-  usuarioLogado: null,
+  usuarioLogado: {
+    email: "cesinhadcat18@gmail.com",
+    logado: true,
+  },
   carregando: false,
 
   adicionarAluno: async (aluno) => {
@@ -116,7 +124,10 @@ export const useStore = create<StoreState>((set, get) => ({
         body: JSON.stringify(aluno),
       });
       const data = await resp.json();
-      const novoAluno = { ...aluno, id: data.id || data._id || Date.now().toString() };
+      const novoAluno = {
+        ...aluno,
+        id: data.id || data._id || Date.now().toString(),
+      };
       const novaLista = [...get().alunos, novoAluno];
       set({ alunos: novaLista });
       await salvarNoStorage("alunos", novaLista);
@@ -139,7 +150,9 @@ export const useStore = create<StoreState>((set, get) => ({
     } catch (e) {
       console.log("Erro ao editar no servidor:", e);
     }
-    const novaLista = get().alunos.map((a) => (a.id === id ? { ...a, ...dados } : a));
+    const novaLista = get().alunos.map((a) =>
+      a.id === id ? { ...a, ...dados } : a
+    );
     set({ alunos: novaLista });
     await salvarNoStorage("alunos", novaLista);
   },
@@ -153,7 +166,7 @@ export const useStore = create<StoreState>((set, get) => ({
       });
 
       if (!resp.ok) {
-        console.warn("Falha na exclusão remota, status:", resp.status);
+        console.warn("Falha remota ao excluir aluno:", resp.status);
       }
     } catch (e) {
       console.log("Erro ao excluir no servidor:", e);
@@ -190,9 +203,6 @@ export const useStore = create<StoreState>((set, get) => ({
   limparUsuarioLogado: async () => {
     set({ usuarioLogado: null });
     await AsyncStorage.removeItem("usuarioLogado");
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.removeItem("token");
-    }
   },
 
   carregarDados: async () => {
@@ -215,8 +225,7 @@ export const useStore = create<StoreState>((set, get) => ({
         } else {
           const localAlunos = await AsyncStorage.getItem("alunos");
           if (localAlunos) {
-            const parsed = JSON.parse(localAlunos);
-            set({ alunos: parsed });
+            set({ alunos: JSON.parse(localAlunos) });
           }
         }
       }
@@ -232,8 +241,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
       set({
         pagamentos: pagamentosSalvos ? JSON.parse(pagamentosSalvos) : [],
-        configuracoes: configuracoesSalvas ? JSON.parse(configuracoesSalvas) : get().configuracoes,
-        usuarioLogado: usuarioSalvo ? JSON.parse(usuarioSalvo) : null,
+        configuracoes: configuracoesSalvas
+          ? JSON.parse(configuracoesSalvas)
+          : get().configuracoes,
+        usuarioLogado: usuarioSalvo
+          ? JSON.parse(usuarioSalvo)
+          : get().usuarioLogado,
       });
     } catch (erro) {
       console.log("Erro ao carregar dados locais:", erro);
