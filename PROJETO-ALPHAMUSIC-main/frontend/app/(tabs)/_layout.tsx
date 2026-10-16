@@ -121,7 +121,16 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarStyle: estilos.barra,
+        tabBarStyle: [
+          estilos.barra,
+          Platform.OS === "web"
+            ? ({
+                height: 90,
+                paddingBottom: 28,
+                boxSizing: "content-box",
+              } as any)
+            : null,
+        ],
         tabBarItemStyle: estilos.itemBarra,
         tabBarActiveTintColor: CORES.primaria,
         tabBarInactiveTintColor: CORES.textoCinza,
@@ -138,7 +147,7 @@ export default function TabLayout() {
         options={{
           title: "Início",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home-outline" size={20} color={color} />
+            <Ionicons name="home-outline" size={22} color={color} />
           ),
         }}
       />
@@ -148,7 +157,7 @@ export default function TabLayout() {
         options={{
           title: "Alunos",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="people-outline" size={20} color={color} />
+            <Ionicons name="people-outline" size={22} color={color} />
           ),
         }}
       />
@@ -158,7 +167,7 @@ export default function TabLayout() {
         options={{
           title: "Agenda",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="calendar-outline" size={20} color={color} />
+            <Ionicons name="calendar-outline" size={22} color={color} />
           ),
         }}
       />
@@ -168,7 +177,7 @@ export default function TabLayout() {
         options={{
           title: "Pagamentos",
           tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons name="cash-multiple" size={20} color={color} />
+            <MaterialCommunityIcons name="cash-multiple" size={22} color={color} />
           ),
         }}
       />
@@ -178,7 +187,7 @@ export default function TabLayout() {
         options={{
           title: "Mais",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="settings-outline" size={20} color={color} />
+            <Ionicons name="settings-outline" size={22} color={color} />
           ),
         }}
       />
@@ -195,9 +204,9 @@ const estilos = StyleSheet.create({
     backgroundColor: CORES.fundoCard,
     borderTopWidth: 1,
     borderTopColor: "#E5E7EB",
-    height: 84,
+    height: 90,
     paddingTop: 8,
-    paddingBottom: 22,
+    paddingBottom: 28,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.08,
@@ -205,14 +214,15 @@ const estilos = StyleSheet.create({
     elevation: 10,
   },
   itemBarra: {
-    paddingVertical: 2,
-    justifyContent: "center",
+    paddingVertical: 0,
+    justifyContent: "flex-start",
     alignItems: "center",
   },
   textoBarra: {
     fontSize: 11,
-    fontWeight: "600",
-    marginTop: 4,
+    fontWeight: "700",
+    marginTop: 2,
+    marginBottom: 0,
   },
   cabecalho: {
     backgroundColor: CORES.fundoEscuro,
