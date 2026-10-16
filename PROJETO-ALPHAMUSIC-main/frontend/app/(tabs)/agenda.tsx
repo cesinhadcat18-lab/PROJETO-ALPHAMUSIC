@@ -1,5 +1,15 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
-import { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+} from "react-native";
+import { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ==========================================================
 // 📅 FERIADOS — MESMA LISTA DO FINANCEIRO
@@ -62,6 +72,13 @@ const feriadosMunicipaisItabaiana = [
 
 const todosFeriados = [...feriadosNacionais, ...feriadosEstaduaisSE, ...feriadosMunicipaisItabaiana];
 
+interface Reposicao {
+  id: string;
+  aluno: string;
+  dataHora: string;
+  motivo: string;
+}
+
 // ==========================================================
 // 📅 TELA DA AGENDA
 // ==========================================================
@@ -70,8 +87,78 @@ export default function AgendaScreen() {
   const hoje = new Date();
   const [mesAtual, setMesAtual] = useState(hoje.getMonth());
   const [anoAtual, setAnoAtual] = useState(hoje.getFullYear());
-  const [diaSelecionado, setDiaSelecionado] = useState(null);
-  const [infoFeriado, setInfoFeriado] = useState(null);
+  const [diaSelecionado, setDiaSelecionado] = useState<number | null>(null);
+  const [infoFeriado, setInfoFeriado] = useState<string | null>(null);
+
+  // 📝 Estados para controle de Reposições
+  const [reposicoes, setReposicoes] = useState<Reposicao[]>([]);
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [nomeAluno, setNomeAluno] = useState("");
+  const [dataHora, setDataHora] = useState("");
+  const [motivo, setMotivo] = useState("");
+
+  const carregarReposicoes = async () => {
+    try {
+      let dados = null;
+      if (Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+        dados = window.localStorage.getItem("reposicoes");
+      }
+      if (!dados) {
+        dados = await AsyncStorage.getItem("reposicoes");
+      }
+      if (dados) {
+        setReposicoes(JSON.parse(dados));
+      }
+    } catch (e) {
+      console.log("Erro ao carregar reposições:", e);
+    }
+  };
+
+  const salvarReposicoes = async (novas: Reposicao[]) => {
+    setReposicoes(novas);
+    try {
+      const str = JSON.stringify(novas);
+      if (Platform.OS === "web" && typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("reposicoes", str);
+      }
+      await AsyncStorage.setItem("reposicoes", str);
+    } catch (e) {
+      console.log("Erro ao salvar reposições:", e);
+    }
+  };
+
+  useEffect(() => {
+    carregarReposicoes();
+  }, []);
+
+  const adicionarReposicao = () => {
+    if (!nomeAluno.trim() || !dataHora.trim()) {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.alert("Informe o nome do aluno e o dia/horário da reposição.");
+      }
+      return;
+    }
+
+    const nova: Reposicao = {
+      id: Date.now().toString(),
+      aluno: nomeAluno.trim(),
+      dataHora: dataHora.trim(),
+      motivo: motivo.trim(),
+    };
+
+    const listaAtualizada = [nova, ...reposicoes];
+    salvarReposicoes(listaAtualizada);
+
+    setNomeAluno("");
+    setDataHora("");
+    setMotivo("");
+    setMostrarForm(false);
+  };
+
+  const excluirReposicao = (id: string) => {
+    const listaAtualizada = reposicoes.filter((r) => r.id !== id);
+    salvarReposicoes(listaAtualizada);
+  };
 
   const nomesMeses = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -79,7 +166,7 @@ export default function AgendaScreen() {
   ];
   const nomesDias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-  const verificarFeriado = (dia, mes, ano) => {
+  const verificarFeriado = (dia: number, mes: number, ano: number) => {
     const dataFormatada = `${dia.toString().padStart(2, "0")}/${(mes + 1).toString().padStart(2, "0")}/${ano}`;
     return todosFeriados.find(f => f.data === dataFormatada);
   };
@@ -112,7 +199,7 @@ export default function AgendaScreen() {
   const semanasComAula = contarSemanasAula();
   const totalSemanasAula = semanasComAula.filter(Boolean).length;
 
-  const selecionarDia = (dia) => {
+  const selecionarDia = (dia: number) => {
     setDiaSelecionado(dia);
     const feriado = verificarFeriado(dia, mesAtual, anoAtual);
     setInfoFeriado(feriado ? `${feriado.nome}` : null);
@@ -122,6 +209,7 @@ export default function AgendaScreen() {
     <ScrollView style={styles.container}>
       <Text style={styles.titulo}>📅 Agenda</Text>
 
+      {/* 📅 CALENDÁRIO */}
       <View style={styles.calendario}>
         <View style={styles.calendarioCabecalho}>
           <Pressable onPress={() => {
@@ -222,6 +310,81 @@ export default function AgendaScreen() {
         </View>
       </View>
 
+      {/* 🔄 BLOCO DE REPOSIÇÕES DE AULA */}
+      <View style={styles.cardReposicoes}>
+        <View style={styles.topoReposicoes}>
+          <Text style={styles.subtituloReposicoes}>🔁 Reposições de Aula</Text>
+          <TouchableOpacity
+            style={styles.botaoNovaReposicao}
+            onPress={() => setMostrarForm(!mostrarForm)}
+          >
+            <Text style={styles.textoBotaoNovaReposicao}>
+              {mostrarForm ? "✕ Fechar" : "➕ Agendar Reposição"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {mostrarForm && (
+          <View style={styles.formularioReposicao}>
+            <Text style={styles.labelForm}>Nome do Aluno</Text>
+            <TextInput
+              style={styles.inputForm}
+              placeholder="Ex: Lucas Gabriel"
+              value={nomeAluno}
+              onChangeText={setNomeAluno}
+            />
+
+            <Text style={styles.labelForm}>Data e Horário da Reposição</Text>
+            <TextInput
+              style={styles.inputForm}
+              placeholder="Ex: Sábado 24/10 às 15:00"
+              value={dataHora}
+              onChangeText={setDataHora}
+            />
+
+            <Text style={styles.labelForm}>Motivo / Observação (opcional)</Text>
+            <TextInput
+              style={styles.inputForm}
+              placeholder="Ex: Falta na aula do dia 12"
+              value={motivo}
+              onChangeText={setMotivo}
+            />
+
+            <TouchableOpacity
+              style={styles.botaoSalvarReposicao}
+              onPress={adicionarReposicao}
+            >
+              <Text style={styles.textoBotaoSalvar}>Salvar Reposição</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {reposicoes.length === 0 ? (
+          <Text style={styles.textoVazioReposicoes}>
+            Nenhuma reposição pendente no momento.
+          </Text>
+        ) : (
+          reposicoes.map((rep) => (
+            <View key={rep.id} style={styles.itemReposicaoCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alunoReposicao}>👤 {rep.aluno}</Text>
+                <Text style={styles.dataHoraReposicao}>⏰ {rep.dataHora}</Text>
+                {rep.motivo ? (
+                  <Text style={styles.motivoReposicao}>📝 {rep.motivo}</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity
+                style={styles.botaoConcluirReposicao}
+                onPress={() => excluirReposicao(rep.id)}
+              >
+                <Text style={styles.textoConcluirReposicao}>✓ Concluir</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
+      </View>
+
+      {/* 📋 FERIADOS (PRESERVADO TOTALMENTE) */}
       <View style={styles.listaFeriadosCard}>
         <Text style={styles.subtitulo}>📋 Feriados — {anoAtual}</Text>
         <ScrollView style={styles.listaFeriados} showsVerticalScrollIndicator={false}>
@@ -286,6 +449,129 @@ const styles = StyleSheet.create({
   itemLegenda: { flexDirection: "row", alignItems: "center", gap: 6 },
   quadradinho: { width: 16, height: 16, borderRadius: 3 },
   textoLegenda: { fontSize: 12, color: "#666" },
+
+  // Estilos da área de Reposições
+  cardReposicoes: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  topoReposicoes: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  subtituloReposicoes: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A1A2E",
+  },
+  botaoNovaReposicao: {
+    backgroundColor: "#7B4B94",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  textoBotaoNovaReposicao: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  formularioReposicao: {
+    backgroundColor: "#F9FAFB",
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  labelForm: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#555",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  inputForm: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: "#333",
+  },
+  botaoSalvarReposicao: {
+    backgroundColor: "#10B981",
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+    marginTop: 14,
+  },
+  textoBotaoSalvar: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  textoVazioReposicoes: {
+    fontSize: 13,
+    color: "#888",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginVertical: 10,
+  },
+  itemReposicaoCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F8F9FA",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  alunoReposicao: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    marginBottom: 2,
+  },
+  dataHoraReposicao: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#2E86AB",
+    marginBottom: 2,
+  },
+  motivoReposicao: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontStyle: "italic",
+  },
+  botaoConcluirReposicao: {
+    backgroundColor: "#E8F5E9",
+    borderWidth: 1,
+    borderColor: "#4CAF50",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  textoConcluirReposicao: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#2E7D32",
+  },
+
+  // Feriados (Preservado)
   listaFeriadosCard: { backgroundColor: "#fff", borderRadius: 12, padding: 20, marginBottom: 40, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   subtitulo: { fontSize: 18, fontWeight: "600", marginBottom: 15, color: "#444" },
   listaFeriados: { maxHeight: 300 },
