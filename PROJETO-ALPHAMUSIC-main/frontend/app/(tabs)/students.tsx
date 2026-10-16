@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, Clipboard } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView, Alert, Clipboard, Platform } from "react-native";
 import { useState, useEffect } from "react";
 import { useStore } from "./store";
 
@@ -31,39 +31,46 @@ export default function StudentsScreen() {
   const [telefoneAluno, setTelefoneAluno] = useState("");
   const [telefoneResponsavel, setTelefoneResponsavel] = useState("");
   const [observacoes, setObservacoes] = useState("");
-  const [alunoEmEdicao, setAlunoEmEdicao] = useState(null);
+  const [alunoEmEdicao, setAlunoEmEdicao] = useState<string | null>(null);
 
-  // ✅ Carrega os dados ao abrir a tela
   useEffect(() => {
     carregarDados();
   }, []);
 
-  const formatarMoeda = (valor) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+  const formatarMoeda = (valor: any) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(valor) || 0);
 
-  const gerarMensagemCobranca = (aluno) => {
+  const gerarMensagemCobranca = (aluno: any) => {
     return `Olá, ${aluno.nome}! 😊
-Aula de ${TIPOS_AULA.find(t => t.valor === aluno.tipoAula)?.label} — ${DIAS_SEMANA.find(d => d.valor === aluno.diaSemana)?.label} às ${aluno.horarioAula}
+Aula de ${TIPOS_AULA.find((t) => t.valor === aluno.tipoAula)?.label || aluno.tipoAula} — ${
+      DIAS_SEMANA.find((d) => d.valor === aluno.diaSemana)?.label || aluno.diaSemana
+    } às ${aluno.horarioAula}
 💰 Valor: ${formatarMoeda(aluno.valorMensalidade)}
 📅 Vencimento: ${aluno.dataVencimento}
-💳 PIX: ${configuracoes.pix || ""}
-🏦 Banco: ${configuracoes.banco || ""}
+💳 PIX: ${configuracoes?.pix || ""}
+🏦 Banco: ${configuracoes?.banco || ""}
 Atenciosamente,
-${configuracoes.nomeEscola || "Alpha Music"}`;
+${configuracoes?.nomeEscola || "Alpha Music"}`;
   };
 
-  const copiarMensagem = (aluno) => {
+  const copiarMensagem = (aluno: any) => {
     Clipboard.setString(gerarMensagemCobranca(aluno));
-    Alert.alert("✅ Copiado!", "Mensagem copiada!");
+    if (Platform.OS === "web") {
+      alert("✅ Mensagem copiada!");
+    } else {
+      Alert.alert("✅ Copiado!", "Mensagem copiada!");
+    }
   };
 
-  const iniciarEdicao = (aluno) => {
-    setAlunoEmEdicao(aluno.id);
-    setNome(aluno.nome);
-    setValorMensalidade(aluno.valorMensalidade.toString().replace(".", ","));
-    setDataVencimento(aluno.dataVencimento);
-    setDiaSemana(aluno.diaSemana);
-    setHorarioAula(aluno.horarioAula);
-    setTipoAula(aluno.tipoAula);
+  const iniciarEdicao = (aluno: any) => {
+    const id = aluno.id || aluno._id;
+    setAlunoEmEdicao(id);
+    setNome(aluno.nome || "");
+    setValorMensalidade((aluno.valorMensalidade || "").toString().replace(".", ","));
+    setDataVencimento(aluno.dataVencimento || "");
+    setDiaSemana(aluno.diaSemana || "");
+    setHorarioAula(aluno.horarioAula || "");
+    setTipoAula(aluno.tipoAula || "");
     setTelefoneAluno(aluno.telefoneAluno || "");
     setTelefoneResponsavel(aluno.telefoneResponsavel || "");
     setObservacoes(aluno.observacoes || "");
@@ -71,24 +78,36 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
 
   const cancelarEdicao = () => {
     setAlunoEmEdicao(null);
-    setNome(""); setValorMensalidade(""); setDataVencimento("");
-    setDiaSemana(""); setHorarioAula(""); setTipoAula("");
-    setTelefoneAluno(""); setTelefoneResponsavel(""); setObservacoes("");
+    setNome("");
+    setValorMensalidade("");
+    setDataVencimento("");
+    setDiaSemana("");
+    setHorarioAula("");
+    setTipoAula("");
+    setTelefoneAluno("");
+    setTelefoneResponsavel("");
+    setObservacoes("");
   };
 
-  // ✅ Função de salvar atualizada com async/await
-  const salvarAluno = async () => {
-    if (!nome.trim()) return Alert.alert("⚠️", "Digite o nome!");
-    if (!valorMensalidade.trim()) return Alert.alert("⚠️", "Digite o valor!");
-    if (!dataVencimento.trim()) return Alert.alert("⚠️", "Digite a data de vencimento!");
-    if (!diaSemana) return Alert.alert("⚠️", "Selecione o dia da semana!");
-    if (!horarioAula.trim()) return Alert.alert("⚠️", "Digite o horário!");
-    if (!tipoAula) return Alert.alert("⚠️", "Selecione o tipo de aula!");
+  const avisar = (titulo: string, msg: string) => {
+    if (Platform.OS === "web") {
+      alert(`${titulo} ${msg}`);
+    } else {
+      Alert.alert(titulo, msg);
+    }
+  };
 
-    const valorNumerico = parseFloat(valorMensalidade.replace(",", "."));
+  const salvarAluno = async () => {
+    if (!nome.trim()) return avisar("⚠️", "Digite o nome!");
+    if (!valorMensalidade.trim()) return avisar("⚠️", "Digite o valor!");
+    if (!dataVencimento.trim()) return avisar("⚠️", "Digite a data de vencimento!");
+    if (!diaSemana) return avisar("⚠️", "Selecione o dia da semana!");
+    if (!horarioAula.trim()) return avisar("⚠️", "Digite o horário!");
+    if (!tipoAula) return avisar("⚠️", "Selecione o tipo de aula!");
+
+    const valorNumerico = parseFloat(valorMensalidade.replace(",", ".")) || 0;
 
     if (alunoEmEdicao) {
-      // ✅ Edição
       await editarAluno(alunoEmEdicao, {
         nome: nome.trim(),
         valorMensalidade: valorNumerico,
@@ -100,9 +119,8 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
         telefoneResponsavel: telefoneResponsavel.trim(),
         observacoes: observacoes.trim(),
       });
-      Alert.alert("✅", "Aluno atualizado!");
+      avisar("✅", "Aluno atualizado!");
     } else {
-      // ✅ Cadastro novo
       await adicionarAluno({
         nome: nome.trim(),
         valorMensalidade: valorNumerico,
@@ -115,23 +133,31 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
         observacoes: observacoes.trim(),
         ativo: true,
       });
-      Alert.alert("✅", "Aluno cadastrado!");
+      avisar("✅", "Aluno cadastrado!");
     }
     cancelarEdicao();
   };
 
-  // ✅ Excluir com async/await
-  const pedirExclusao = (id, nome) => {
-    Alert.alert(
-      "Excluir?",
-      `${nome} será removido.`,
-      [
+  const pedirExclusao = async (id: string, nomeAluno: string) => {
+    if (!id) return;
+
+    if (Platform.OS === "web") {
+      const confirmou = window.confirm(`Deseja excluir ${nomeAluno}?`);
+      if (confirmou) {
+        await excluirAluno(id);
+      }
+    } else {
+      Alert.alert("Excluir?", `${nomeAluno} será removido.`, [
         { text: "Cancelar", style: "cancel" },
-        { text: "Excluir", style: "destructive", onPress: async () => {
-          await excluirAluno(id);
-        }},
-      ]
-    );
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            await excluirAluno(id);
+          },
+        },
+      ]);
+    }
   };
 
   return (
@@ -146,30 +172,58 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
 
         <Text style={styles.label}>📅 Dia da Semana </Text>
         <View style={styles.opcoes}>
-          {DIAS_SEMANA.map(dia => (
-            <Pressable key={dia.valor} style={[styles.botaoOpcao, diaSemana === dia.valor && styles.opcaoSelecionada]} onPress={() => setDiaSemana(dia.valor)}>
-              <Text style={[styles.textoOpcao, diaSemana === dia.valor && styles.textoSelecionado]}>{dia.valor}</Text>
+          {DIAS_SEMANA.map((dia) => (
+            <Pressable
+              key={dia.valor}
+              style={[styles.botaoOpcao, diaSemana === dia.valor && styles.opcaoSelecionada]}
+              onPress={() => setDiaSemana(dia.valor)}
+            >
+              <Text style={[styles.textoOpcao, diaSemana === dia.valor && styles.textoSelecionado]}>
+                {dia.valor}
+              </Text>
             </Pressable>
           ))}
         </View>
 
         <Text style={styles.label}>🕒 Horário da Aula </Text>
-        <TextInput style={styles.input} placeholder="Digite o horário" value={horarioAula} onChangeText={setHorarioAula} />
+        <TextInput
+          style={styles.input}
+          placeholder="Digite o horário"
+          value={horarioAula}
+          onChangeText={setHorarioAula}
+        />
 
         <Text style={styles.label}>🎵 Tipo de Aula </Text>
         <View style={styles.opcoes}>
-          {TIPOS_AULA.map(tipo => (
-            <Pressable key={tipo.valor} style={[styles.botaoOpcao, tipoAula === tipo.valor && styles.opcaoSelecionada]} onPress={() => setTipoAula(tipo.valor)}>
-              <Text style={[styles.textoOpcao, tipoAula === tipo.valor && styles.textoSelecionado]}>{tipo.label}</Text>
+          {TIPOS_AULA.map((tipo) => (
+            <Pressable
+              key={tipo.valor}
+              style={[styles.botaoOpcao, tipoAula === tipo.valor && styles.opcaoSelecionada]}
+              onPress={() => setTipoAula(tipo.valor)}
+            >
+              <Text style={[styles.textoOpcao, tipoAula === tipo.valor && styles.textoSelecionado]}>
+                {tipo.label}
+              </Text>
             </Pressable>
           ))}
         </View>
 
         <Text style={styles.label}>💰 Mensalidade (R$) </Text>
-        <TextInput style={styles.input} placeholder="200,00" keyboardType="decimal-pad" value={valorMensalidade} onChangeText={setValorMensalidade} />
+        <TextInput
+          style={styles.input}
+          placeholder="200,00"
+          keyboardType="decimal-pad"
+          value={valorMensalidade}
+          onChangeText={setValorMensalidade}
+        />
 
         <Text style={styles.label}>📅 Data de Vencimento </Text>
-        <TextInput style={styles.input} placeholder="DD/MM/AAAA" value={dataVencimento} onChangeText={setDataVencimento} />
+        <TextInput
+          style={styles.input}
+          placeholder="DD/MM/AAAA"
+          value={dataVencimento}
+          onChangeText={setDataVencimento}
+        />
 
         <Text style={styles.label}>📞 Telefone do Aluno</Text>
         <TextInput
@@ -196,11 +250,24 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
         />
 
         <Text style={styles.label}>📝 Observações</Text>
-        <TextInput style={[styles.input, styles.textoGrande]} placeholder="Observações..." value={observacoes} onChangeText={setObservacoes} multiline numberOfLines={3} />
+        <TextInput
+          style={[styles.input, styles.textoGrande]}
+          placeholder="Observações..."
+          value={observacoes}
+          onChangeText={setObservacoes}
+          multiline
+          numberOfLines={3}
+        />
 
         <View style={styles.botoesForm}>
-          {alunoEmEdicao && <Pressable style={styles.botaoCancelar} onPress={cancelarEdicao}><Text style={styles.textoCancelar}>❌ Cancelar</Text></Pressable>}
-          <Pressable style={styles.botaoSalvar} onPress={salvarAluno}><Text style={styles.textoSalvar}>{alunoEmEdicao ? "✅ Salvar" : "✅ Cadastrar"}</Text></Pressable>
+          {alunoEmEdicao && (
+            <Pressable style={styles.botaoCancelar} onPress={cancelarEdicao}>
+              <Text style={styles.textoCancelar}>❌ Cancelar</Text>
+            </Pressable>
+          )}
+          <Pressable style={styles.botaoSalvar} onPress={salvarAluno}>
+            <Text style={styles.textoSalvar}>{alunoEmEdicao ? "✅ Salvar" : "✅ Cadastrar"}</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -208,23 +275,49 @@ ${configuracoes.nomeEscola || "Alpha Music"}`;
         <Text style={styles.subtitulo}>📋 Alunos Cadastrados ({alunos.length})</Text>
         {alunos.length === 0 ? (
           <Text style={styles.vazio}>Nenhum aluno cadastrado.</Text>
-        ) : alunos.sort((a, b) => a.diaSemana.localeCompare(b.diaSemana) || a.horarioAula.localeCompare(b.horarioAula)).map(aluno => (
-          <View key={aluno.id} style={styles.item}>
-            <View style={styles.cabecalhoItem}>
-              <Text style={styles.nomeItem}>{aluno.nome}</Text>
-              <Text style={styles.diaItem}>{aluno.diaSemana} {aluno.horarioAula}</Text>
-            </View>
-            <Text style={styles.detalhe}>{TIPOS_AULA.find(t => t.valor === aluno.tipoAula)?.label} | {formatarMoeda(aluno.valorMensalidade)} | Vence: {aluno.dataVencimento}</Text>
-            {aluno.telefoneAluno ? <Text style={styles.detalhe}>📞 Aluno: {aluno.telefoneAluno}</Text> : null}
-            {aluno.telefoneResponsavel ? <Text style={styles.detalhe}>👨‍👩‍👦 Resp: {aluno.telefoneResponsavel}</Text> : null}
-            {aluno.observacoes ? <Text style={styles.obsItem}>📝 {aluno.observacoes}</Text> : null}
-            <View style={styles.botoesItem}>
-              <Pressable style={styles.btnEditar} onPress={() => iniciarEdicao(aluno)}><Text style={styles.btnTexto}>✏️ Editar</Text></Pressable>
-              <Pressable style={styles.btnCopiar} onPress={() => copiarMensagem(aluno)}><Text style={styles.btnTexto}>📋 Copiar</Text></Pressable>
-              <Pressable style={styles.btnExcluir} onPress={() => pedirExclusao(aluno.id, aluno.nome)}><Text style={styles.btnTexto}>🗑️</Text></Pressable>
-            </View>
-          </View>
-        ))}
+        ) : (
+          alunos
+            .slice()
+            .sort((a, b) => (a.diaSemana || "").localeCompare(b.diaSemana || "") || (a.horarioAula || "").localeCompare(b.horarioAula || ""))
+            .map((aluno: any) => {
+              const id = aluno.id || aluno._id;
+              return (
+                <View key={id} style={styles.item}>
+                  <View style={styles.cabecalhoItem}>
+                    <Text style={styles.nomeItem}>{aluno.nome}</Text>
+                    <Text style={styles.diaItem}>
+                      {aluno.diaSemana} {aluno.horarioAula}
+                    </Text>
+                  </View>
+                  <Text style={styles.detalhe}>
+                    {TIPOS_AULA.find((t) => t.valor === aluno.tipoAula)?.label || aluno.tipoAula} |{" "}
+                    {formatarMoeda(aluno.valorMensalidade)} | Vence: {aluno.dataVencimento}
+                  </Text>
+                  {aluno.telefoneAluno ? (
+                    <Text style={styles.detalhe}>📞 Aluno: {aluno.telefoneAluno}</Text>
+                  ) : null}
+                  {aluno.telefoneResponsavel ? (
+                    <Text style={styles.detalhe}>👨‍👩‍👦 Resp: {aluno.telefoneResponsavel}</Text>
+                  ) : null}
+                  {aluno.observacoes ? <Text style={styles.obsItem}>📝 {aluno.observacoes}</Text> : null}
+                  <View style={styles.botoesItem}>
+                    <Pressable style={styles.btnEditar} onPress={() => iniciarEdicao(aluno)}>
+                      <Text style={styles.btnTexto}>✏️ Editar</Text>
+                    </Pressable>
+                    <Pressable style={styles.btnCopiar} onPress={() => copiarMensagem(aluno)}>
+                      <Text style={styles.btnTexto}>📋 Copiar</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.btnExcluir}
+                      onPress={() => pedirExclusao(id, aluno.nome)}
+                    >
+                      <Text style={styles.btnTexto}>🗑️</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })
+        )}
       </View>
     </ScrollView>
   );
