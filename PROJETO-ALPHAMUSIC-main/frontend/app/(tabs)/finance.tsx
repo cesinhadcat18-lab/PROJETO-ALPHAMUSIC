@@ -74,9 +74,15 @@ export default function FinanceScreen() {
   const alunosPendentes = alunos.filter((a: any) => !nomesPagaram.includes((a.nome || "").trim().toLowerCase()));
   const totalPendente = alunosPendentes.reduce((acc: number, a: any) => acc + (Number(a.valorMensalidade) || 0), 0);
 
+  // Alterna seleção: 1º clique seleciona, 2º clique desseleciona
   const escolherAluno = (nome: string, valorMensalidade: number) => {
-    setAlunoSelecionado({ nome, valor: valorMensalidade });
-    setValor((Number(valorMensalidade) || 0).toFixed(2).replace(".", ","));
+    if (alunoSelecionado && alunoSelecionado.nome === nome) {
+      setAlunoSelecionado(null);
+      setValor("");
+    } else {
+      setAlunoSelecionado({ nome, valor: valorMensalidade });
+      setValor((Number(valorMensalidade) || 0).toFixed(2).replace(".", ","));
+    }
     setMostrarLista(false);
   };
 
@@ -120,7 +126,6 @@ export default function FinanceScreen() {
     }
   };
 
-  // 📄 Gerar Relatório e Imprimir / Salvar em PDF
   const gerarRelatorioPDF = () => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const janela = window.open("", "_blank");
@@ -129,13 +134,23 @@ export default function FinanceScreen() {
       const escola = configuracoes?.nomeEscola || "Alpha Music";
       const dataHoje = new Date().toLocaleDateString("pt-BR");
 
-      const linhasPgtos = pagamentosValidos.map((p: any) => `
-        <tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(p.valor)}</td></tr>
-      `).join("");
+      const linhasPgtos = pagamentosValidos
+        .map(
+          (p: any) => `
+        <tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(
+            p.valor
+          )}</td></tr>
+      `
+        )
+        .join("");
 
-      const linhasPend = alunosPendentes.map((a: any) => `
+      const linhasPend = alunosPendentes
+        .map(
+          (a: any) => `
         <tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>
-      `).join("");
+      `
+        )
+        .join("");
 
       janela.document.write(`
         <html>
@@ -161,9 +176,13 @@ export default function FinanceScreen() {
             <div class="card"><strong style="color:red;">Pendente</strong><br>${formatarMoeda(diferenca)}</div>
           </div>
           <h3>💳 Pagamentos Realizados (${pagamentosValidos.length})</h3>
-          <table><tr><th>Aluno</th><th>Data</th><th>Forma</th><th style="text-align:right;">Valor</th></tr>${linhasPgtos || '<tr><td colspan="4">Nenhum</td></tr>'}</table>
+          <table><tr><th>Aluno</th><th>Data</th><th>Forma</th><th style="text-align:right;">Valor</th></tr>${
+            linhasPgtos || '<tr><td colspan="4">Nenhum</td></tr>'
+          }</table>
           <h3>⏳ Alunos Pendentes (${alunosPendentes.length})</h3>
-          <table><tr><th>Aluno</th><th style="text-align:right;">Valor</th></tr>${linhasPend || '<tr><td colspan="2">Nenhum</td></tr>'}</table>
+          <table><tr><th>Aluno</th><th style="text-align:right;">Valor</th></tr>${
+            linhasPend || '<tr><td colspan="2">Nenhum</td></tr>'
+          }</table>
         </body>
         </html>
       `);
@@ -179,10 +198,22 @@ export default function FinanceScreen() {
         <Text style={styles.titulo}>💰 Financeiro</Text>
 
         <View style={styles.cardsResumo}>
-          <View style={styles.cardResumo}><Text style={styles.resumoLabel}>👨‍🏫 Alunos</Text><Text style={styles.resumoValor}>{alunos.length}</Text></View>
-          <View style={styles.cardResumo}><Text style={styles.resumoLabel}>📋 Previsto</Text><Text style={styles.resumoValorReceber}>{formatarMoeda(totalAReceber)}</Text></View>
-          <View style={styles.cardResumo}><Text style={styles.resumoLabel}>✅ Recebido</Text><Text style={styles.resumoValorRecebido}>{formatarMoeda(totalRecebido)}</Text></View>
-          <View style={styles.cardResumo}><Text style={styles.resumoLabel}>📊 Falta</Text><Text style={styles.resumoValorFalta}>{formatarMoeda(diferenca)}</Text></View>
+          <View style={styles.cardResumo}>
+            <Text style={styles.resumoLabel}>👨‍🏫 Alunos</Text>
+            <Text style={styles.resumoValor}>{alunos.length}</Text>
+          </View>
+          <View style={styles.cardResumo}>
+            <Text style={styles.resumoLabel}>📋 Previsto</Text>
+            <Text style={styles.resumoValorReceber}>{formatarMoeda(totalAReceber)}</Text>
+          </View>
+          <View style={styles.cardResumo}>
+            <Text style={styles.resumoLabel}>✅ Recebido</Text>
+            <Text style={styles.resumoValorRecebido}>{formatarMoeda(totalRecebido)}</Text>
+          </View>
+          <View style={styles.cardResumo}>
+            <Text style={styles.resumoLabel}>📊 Falta</Text>
+            <Text style={styles.resumoValorFalta}>{formatarMoeda(diferenca)}</Text>
+          </View>
         </View>
 
         <TouchableOpacity style={styles.botaoRelatorio} onPress={gerarRelatorioPDF}>
@@ -198,7 +229,9 @@ export default function FinanceScreen() {
               <View key={id} style={[styles.itemPendente, selecionado && styles.itemPendenteSelecionado]}>
                 <View style={styles.linhaPendente}>
                   <Text style={[styles.nomePendente, selecionado && styles.nomeSelecionado]}>{aluno.nome}</Text>
-                  <Text style={[styles.valorPendente, selecionado && styles.valorSelecionado]}>{formatarMoeda(aluno.valorMensalidade)}</Text>
+                  <Text style={[styles.valorPendente, selecionado && styles.valorSelecionado]}>
+                    {formatarMoeda(aluno.valorMensalidade)}
+                  </Text>
                 </View>
                 <Pressable
                   style={[styles.botaoDarBaixa, selecionado && styles.botaoBaixaAtivo]}
@@ -214,7 +247,10 @@ export default function FinanceScreen() {
         <View style={styles.card}>
           <Text style={styles.subtitulo}>➕ Registrar Pagamento</Text>
           <Text style={styles.label}>Aluno</Text>
-          <Pressable style={[styles.seletor, alunoSelecionado && styles.seletorAtivo]} onPress={() => setMostrarLista(!mostrarLista)}>
+          <Pressable
+            style={[styles.seletor, alunoSelecionado && styles.seletorAtivo]}
+            onPress={() => setMostrarLista(!mostrarLista)}
+          >
             <Text style={alunoSelecionado ? styles.textoAtivo : styles.textoPlaceholder}>
               {alunoSelecionado ? `👤 ${alunoSelecionado.nome}` : "👉 Escolher aluno..."}
             </Text>
@@ -228,15 +264,25 @@ export default function FinanceScreen() {
                   style={[styles.itemAluno, alunoSelecionado?.nome === a.nome && styles.itemAlunoAtivo]}
                   onPress={() => escolherAluno(a.nome, a.valorMensalidade)}
                 >
-                  <Text style={alunoSelecionado?.nome === a.nome ? styles.textoAlunoAtivo : styles.nomeAlunoLista}>{a.nome}</Text>
-                  <Text style={alunoSelecionado?.nome === a.nome ? styles.textoAlunoAtivo : styles.valorAlunoLista}>{formatarMoeda(a.valorMensalidade)}</Text>
+                  <Text style={alunoSelecionado?.nome === a.nome ? styles.textoAlunoAtivo : styles.nomeAlunoLista}>
+                    {a.nome}
+                  </Text>
+                  <Text style={alunoSelecionado?.nome === a.nome ? styles.textoAlunoAtivo : styles.valorAlunoLista}>
+                    {formatarMoeda(a.valorMensalidade)}
+                  </Text>
                 </Pressable>
               ))}
             </View>
           )}
 
           <Text style={styles.label}>Valor (R$)</Text>
-          <TextInput style={styles.input} placeholder="0,00" keyboardType="decimal-pad" value={valor} onChangeText={setValor} />
+          <TextInput
+            style={styles.input}
+            placeholder="0,00"
+            keyboardType="decimal-pad"
+            value={valor}
+            onChangeText={setValor}
+          />
 
           <Text style={styles.label}>Data do Pagamento</Text>
           <TextInput
@@ -273,7 +319,14 @@ export default function FinanceScreen() {
           )}
 
           <Text style={styles.label}>Observação</Text>
-          <TextInput style={[styles.input, styles.textoGrande]} placeholder="Anotações..." value={observacao} onChangeText={setObservacao} multiline numberOfLines={2} />
+          <TextInput
+            style={[styles.input, styles.textoGrande]}
+            placeholder="Anotações..."
+            value={observacao}
+            onChangeText={setObservacao}
+            multiline
+            numberOfLines={2}
+          />
 
           <Pressable style={styles.botao} onPress={salvarPagamento}>
             <Text style={styles.botaoTexto}>✅ Salvar Pagamento</Text>
@@ -286,7 +339,9 @@ export default function FinanceScreen() {
             <View key={pg.id || pg._id} style={styles.itemPagamento}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.pgtoAluno}>{pg.aluno}</Text>
-                <Text style={styles.pgtoData}>📅 {pg.dataPagamento} | {pg.meioPagamento}</Text>
+                <Text style={styles.pgtoData}>
+                  📅 {pg.dataPagamento} | {pg.meioPagamento}
+                </Text>
               </View>
               <Text style={styles.pgtoValor}>{formatarMoeda(pg.valor)}</Text>
               <Pressable style={styles.botaoExcluir} onPress={() => excluirPgto(pg.id || pg._id, pg.aluno)}>
@@ -304,7 +359,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: "#f5f5f5" },
   titulo: { fontSize: 26, fontWeight: "bold", marginBottom: 15, textAlign: "center", color: "#333" },
   cardsResumo: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginBottom: 10 },
-  cardResumo: { width: "48%", backgroundColor: "#fff", borderRadius: 10, padding: 12, marginBottom: 10, alignItems: "center", elevation: 2 },
+  cardResumo: {
+    width: "48%",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    alignItems: "center",
+    elevation: 2,
+  },
   resumoLabel: { fontSize: 12, color: "#666" },
   resumoValor: { fontSize: 20, fontWeight: "bold", color: "#333", marginTop: 4 },
   resumoValorReceber: { fontSize: 16, fontWeight: "bold", color: "#E67E22", marginTop: 4 },
@@ -312,39 +375,91 @@ const styles = StyleSheet.create({
   resumoValorFalta: { fontSize: 16, fontWeight: "bold", color: "#E74C3C", marginTop: 4 },
   botaoRelatorio: { backgroundColor: "#7B4B94", padding: 12, borderRadius: 8, alignItems: "center", marginBottom: 16 },
   textoBotaoRelatorio: { color: "#fff", fontSize: 14, fontWeight: "bold" },
-  pendentesCard: { backgroundColor: "#FFF8E1", borderRadius: 10, padding: 14, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: "#F39C12" },
+  pendentesCard: {
+    backgroundColor: "#FFF8E1",
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F39C12",
+  },
   subtitulo: { fontSize: 17, fontWeight: "bold", marginBottom: 12, color: "#333" },
-  itemPendente: { backgroundColor: "#fff", borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: "#eee" },
+  itemPendente: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
   itemPendenteSelecionado: { borderColor: "#7B4B94", borderWidth: 2, backgroundColor: "#FAF5FC" },
   linhaPendente: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
   nomePendente: { fontSize: 14, fontWeight: "600", color: "#333" },
   nomeSelecionado: { color: "#7B4B94", fontWeight: "bold" },
   valorPendente: { fontSize: 14, fontWeight: "bold", color: "#E67E22" },
   valorSelecionado: { color: "#7B4B94" },
-  botaoDarBaixa: { backgroundColor: "#27AE60", paddingVertical: 5, paddingHorizontal: 10, borderRadius: 6, alignSelf: "flex-start" },
+  botaoDarBaixa: {
+    backgroundColor: "#27AE60",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    alignSelf: "flex-start",
+  },
   botaoBaixaAtivo: { backgroundColor: "#7B4B94" },
   textoBotaoBaixa: { color: "#fff", fontSize: 12, fontWeight: "600" },
   card: { backgroundColor: "#fff", padding: 16, borderRadius: 10, marginBottom: 16, elevation: 2 },
   listaCard: { backgroundColor: "#fff", padding: 16, borderRadius: 10, marginBottom: 40, elevation: 2 },
   label: { fontSize: 13, fontWeight: "600", marginTop: 10, marginBottom: 4, color: "#555" },
-  input: { borderWidth: 1, borderColor: "#ddd", borderRadius: 8, padding: 10, fontSize: 15, backgroundColor: "#fafafa" },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 15,
+    backgroundColor: "#fafafa",
+  },
   textoGrande: { height: 60, textAlignVertical: "top" },
   seletor: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 12, backgroundColor: "#fafafa" },
   seletorAtivo: { borderColor: "#7B4B94", borderWidth: 2, backgroundColor: "#FAF5FC" },
   textoPlaceholder: { color: "#888" },
   textoAtivo: { color: "#7B4B94", fontWeight: "bold" },
-  listaAlunos: { backgroundColor: "#f9f9f9", borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: "#eee" },
-  itemAluno: { flexDirection: "row", justifyContent: "space-between", padding: 8, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  listaAlunos: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  itemAluno: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    padding: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
   itemAlunoAtivo: { backgroundColor: "#7B4B94", borderRadius: 6 },
   nomeAlunoLista: { fontSize: 14, color: "#333" },
   valorAlunoLista: { fontSize: 14, color: "#2E86AB" },
   textoAlunoAtivo: { color: "#fff", fontWeight: "bold" },
-  listaOpcoes: { backgroundColor: "#f9f9f9", borderRadius: 8, marginTop: 6, borderWidth: 1, borderColor: "#eee" },
+  listaOpcoes: {
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
   itemOpcao: { padding: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
   textoOpcao: { fontSize: 14, color: "#333" },
   botao: { backgroundColor: "#27AE60", padding: 12, borderRadius: 8, alignItems: "center", marginTop: 14 },
   botaoTexto: { color: "#fff", fontSize: 15, fontWeight: "bold" },
-  itemPagamento: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  itemPagamento: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+  },
   pgtoAluno: { fontSize: 14, fontWeight: "bold", color: "#333" },
   pgtoData: { fontSize: 12, color: "#666" },
   pgtoValor: { fontSize: 15, fontWeight: "bold", color: "#27AE60", marginRight: 10 },
