@@ -127,24 +127,78 @@ export default function FinanceScreen() {
     }
   };
 
-  // ✅ Disparo direto compatível com Celular (iOS/Android) e Computador
-  const dispararImpressao = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      // Injeta estilos de impressão para ocultar a barra de navegação/botões no PDF
-      if (typeof document !== "undefined" && !document.getElementById("print-style")) {
-        const style = document.createElement("style");
-        style.id = "print-style";
-        style.innerHTML = `
-          @media print {
-            .no-print { display: none !important; }
-            body, html { background: #fff !important; }
-          }
-        `;
-        document.head.appendChild(style);
+  // ✅ Exportar para WhatsApp / Arquivos no Celular ou Imprimir no Computador
+  const exportarOuImprimir = async () => {
+    const escola = configuracoes?.nomeEscola || "Alpha Music Escola de Música";
+    const dataHoje = new Date().toLocaleDateString("pt-BR");
+
+    const htmlDoc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Relatório Financeiro - ${escola}</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 20px; color: #333; }
+    h2 { color: #7B4B94; margin: 0; }
+    p { color: #666; font-size: 13px; margin: 5px 0 15px; }
+    .resumo { display: flex; gap: 10px; margin-bottom: 20px; }
+    .card { flex: 1; border: 1px solid #ddd; padding: 8px; border-radius: 6px; text-align: center; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
+    th { background: #7B4B94; color: #fff; }
+  </style>
+</head>
+<body>
+  <h2>🎵 ${escola}</h2>
+  <p>Relatório Financeiro — Emitido em: ${dataHoje}</p>
+  <div class="resumo">
+    <div class="card"><strong>Alunos</strong><br>${alunos.length}</div>
+    <div class="card"><strong>Previsto</strong><br>${formatarMoeda(totalAReceber)}</div>
+    <div class="card"><strong style="color:green;">Recebido</strong><br>${formatarMoeda(totalRecebido)}</div>
+    <div class="card"><strong style="color:red;">Falta</strong><br>${formatarMoeda(diferenca)}</div>
+  </div>
+  <h3>💳 Pagamentos Realizados (${pagamentosValidos.length})</h3>
+  <table>
+    <tr><th>Aluno</th><th>Data</th><th>Forma</th><th style="text-align:right;">Valor</th></tr>
+    ${pagamentosValidos.map((p: any) => `<tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(p.valor)}</td></tr>`).join("") || '<tr><td colspan="4">Nenhum pagamento</td></tr>'}
+  </table>
+  <h3>⏳ Alunos Pendentes (${alunosPendentes.length})</h3>
+  <table>
+    <tr><th>Aluno</th><th style="text-align:right;">Valor</th></tr>
+    ${alunosPendentes.map((a: any) => `<tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>`).join("") || '<tr><td colspan="2">Nenhum pendente</td></tr>'}
+  </table>
+</body>
+</html>`;
+
+    // 1. Tenta compartilhamento nativo de arquivo (iOS / Android)
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        const file = new File([htmlDoc], `Relatorio_${dataHoje.replace(/\//g, "-")}.html`, {
+          type: "text/html",
+        });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: `Relatório Financeiro - ${escola}`,
+            files: [file],
+          });
+          return;
+        }
+      } catch (err) {
+        // Se cancelar ou não suportar envio de arquivo direto, segue para fallback
       }
-      setTimeout(() => {
-        window.print();
-      }, 100);
+    }
+
+    // 2. Fallback: Download direto do arquivo HTML formatado para abrir e imprimir
+    if (typeof document !== "undefined") {
+      const blob = new Blob([htmlDoc], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Relatorio_Financeiro_${dataHoje.replace(/\//g, "-")}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
   };
 
@@ -173,7 +227,7 @@ export default function FinanceScreen() {
         </View>
 
         <TouchableOpacity style={styles.botaoRelatorio} onPress={() => setExibirRelatorioModal(true)}>
-          <Text style={styles.textoBotaoRelatorio}>📄 Ver Relatório / Imprimir PDF</Text>
+          <Text style={styles.textoBotaoRelatorio}>📄 Ver Relatório Financeiro</Text>
         </TouchableOpacity>
 
         <View style={styles.pendentesCard}>
@@ -308,15 +362,15 @@ export default function FinanceScreen() {
         </View>
       </ScrollView>
 
-      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E IMPRESSÃO NATIVA */}
+      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E EXPORTAR/COMPARTILHAR */}
       <Modal visible={exibirRelatorioModal} animationType="slide" onRequestClose={() => setExibirRelatorioModal(false)}>
         <View style={styles.modalContainer}>
-          <View style={[styles.modalTopo, { ...Platform.select({ web: { className: "no-print" } as any }) }]}>
+          <View style={styles.modalTopo}>
             <TouchableOpacity style={styles.btnVoltarModal} onPress={() => setExibirRelatorioModal(false)}>
               <Text style={styles.txtVoltarModal}>← Voltar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnImprimirModal} onPress={dispararImpressao}>
-              <Text style={styles.txtImprimirModal}>🖨️ Imprimir / PDF</Text>
+            <TouchableOpacity style={styles.btnImprimirModal} onPress={exportarOuImprimir}>
+              <Text style={styles.txtImprimirModal}>📤 Exportar / Compartilhar</Text>
             </TouchableOpacity>
           </View>
 
@@ -535,6 +589,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   modalItemNome: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
-  modalItemDetalhe: { fontSize: 12, color: "#6B7280" },
+  modalItemDetalhe: { fontSize: 12, color: "#6 complications" },
   modalItemValor: { fontSize: 14, fontWeight: "bold", color: "#10B981" },
 });
