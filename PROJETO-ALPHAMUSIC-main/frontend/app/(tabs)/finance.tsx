@@ -39,6 +39,7 @@ export default function FinanceScreen() {
   const [observacao, setObservacao] = useState("");
   const [mostrarLista, setMostrarLista] = useState(false);
   const [exibirRelatorioModal, setExibirRelatorioModal] = useState(false);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
 
   useEffect(() => {
     if (carregarDados) carregarDados();
@@ -127,78 +128,167 @@ export default function FinanceScreen() {
     }
   };
 
-  // ✅ Exportar para WhatsApp / Arquivos no Celular ou Imprimir no Computador
-  const exportarOuImprimir = async () => {
-    const escola = configuracoes?.nomeEscola || "Alpha Music Escola de Música";
-    const dataHoje = new Date().toLocaleDateString("pt-BR");
+  // Carrega a biblioteca de PDF no navegador sob demanda (sem quebrar build)
+  const carregarJsPDF = async (): Promise<any> => {
+    if (typeof window === "undefined") return null;
+    if ((window as any).jspdf) return (window as any).jspdf.jsPDF;
 
-    const htmlDoc = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Relatório Financeiro - ${escola}</title>
-  <style>
-    body { font-family: -apple-system, sans-serif; padding: 20px; color: #333; }
-    h2 { color: #7B4B94; margin: 0; }
-    p { color: #666; font-size: 13px; margin: 5px 0 15px; }
-    .resumo { display: flex; gap: 10px; margin-bottom: 20px; }
-    .card { flex: 1; border: 1px solid #ddd; padding: 8px; border-radius: 6px; text-align: center; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
-    th { background: #7B4B94; color: #fff; }
-  </style>
-</head>
-<body>
-  <h2>🎵 ${escola}</h2>
-  <p>Relatório Financeiro — Emitido em: ${dataHoje}</p>
-  <div class="resumo">
-    <div class="card"><strong>Alunos</strong><br>${alunos.length}</div>
-    <div class="card"><strong>Previsto</strong><br>${formatarMoeda(totalAReceber)}</div>
-    <div class="card"><strong style="color:green;">Recebido</strong><br>${formatarMoeda(totalRecebido)}</div>
-    <div class="card"><strong style="color:red;">Falta</strong><br>${formatarMoeda(diferenca)}</div>
-  </div>
-  <h3>💳 Pagamentos Realizados (${pagamentosValidos.length})</h3>
-  <table>
-    <tr><th>Aluno</th><th>Data</th><th>Forma</th><th style="text-align:right;">Valor</th></tr>
-    ${pagamentosValidos.map((p: any) => `<tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(p.valor)}</td></tr>`).join("") || '<tr><td colspan="4">Nenhum pagamento</td></tr>'}
-  </table>
-  <h3>⏳ Alunos Pendentes (${alunosPendentes.length})</h3>
-  <table>
-    <tr><th>Aluno</th><th style="text-align:right;">Valor</th></tr>
-    ${alunosPendentes.map((a: any) => `<tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>`).join("") || '<tr><td colspan="2">Nenhum pendente</td></tr>'}
-  </table>
-</body>
-</html>`;
+    return new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+      script.onload = () => {
+        resolve((window as any).jspdf ? (window as any).jspdf.jsPDF : null);
+      };
+      script.onerror = () => resolve(null);
+      document.head.appendChild(script);
+    });
+  };
 
-    // 1. Tenta compartilhamento nativo de arquivo (iOS / Android)
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        const file = new File([htmlDoc], `Relatorio_${dataHoje.replace(/\//g, "-")}.html`, {
-          type: "text/html",
+  // 📄 GERAÇÃO REAL DE ARQUIVO .PDF (Compatível com Celular e PC)
+  const gerarArquivoPDF = async () => {
+    if (gerandoPdf) return;
+    setGerandoPdf(true);
+
+    try {
+      const JsPDFConstructor = await carregarJsPDF();
+      if (!JsPDFConstructor) {
+        avisar("⚠️", "Não foi possível carregar o gerador de PDF. Verifique a sua conexão.");
+        setGerandoPdf(false);
+        return;
+      }
+
+      const doc = new JsPDFConstructor({ orientation: "portrait", unit: "mm", format: "a4" });
+      const escola = configuracoes?.nomeEscola || "Alpha Music Escola de Música";
+      const dataHoje = new Date().toLocaleDateString("pt-BR");
+
+      // CABEÇALHO
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(123, 75, 148); // Roxo Alpha Music
+      doc.text(escola, 14, 18);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Relatório Financeiro — Emitido em: ${dataHoje}`, 14, 25);
+
+      // RESUMO CARDS
+      doc.setDrawColor(220, 220, 220);
+      doc.setFillColor(248, 248, 250);
+      doc.roundedRect(14, 30, 182, 18, 2, 2, "FD");
+
+      doc.setFontSize(10);
+      doc.setTextColor(50, 50, 50);
+      doc.text(`Alunos: ${alunos.length}    |    Previsto: ${formatarMoeda(totalAReceber)}    |    Recebido: ${formatarMoeda(totalRecebido)}    |    Falta: ${formatarMoeda(diferenca)}`, 18, 41);
+
+      let posVertical = 56;
+
+      // SEÇÃO 1: PAGAMENTOS REALIZADOS
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(123, 75, 148);
+      doc.text(`Pagamentos Realizados (${pagamentosValidos.length})`, 14, posVertical);
+      posVertical += 6;
+
+      // CABEÇALHO DA TABELA
+      doc.setFillColor(123, 75, 148);
+      doc.rect(14, posVertical, 182, 7, "F");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Aluno", 18, posVertical + 5);
+      doc.text("Data", 85, posVertical + 5);
+      doc.text("Forma", 125, posVertical + 5);
+      doc.text("Valor", 175, posVertical + 5);
+      posVertical += 8;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+
+      if (pagamentosValidos.length === 0) {
+        doc.text("Nenhum pagamento registrado no momento.", 18, posVertical + 4);
+        posVertical += 8;
+      } else {
+        pagamentosValidos.forEach((p: any) => {
+          if (posVertical > 275) {
+            doc.addPage();
+            posVertical = 20;
+          }
+          doc.text(String(p.aluno || "").slice(0, 30), 18, posVertical + 4);
+          doc.text(String(p.dataPagamento || ""), 85, posVertical + 4);
+          doc.text(String(p.meioPagamento || "").slice(0, 20), 125, posVertical + 4);
+          doc.text(formatarMoeda(p.valor), 175, posVertical + 4);
+
+          doc.setDrawColor(240, 240, 240);
+          doc.line(14, posVertical + 6, 196, posVertical + 6);
+          posVertical += 7;
         });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      }
+
+      posVertical += 8;
+
+      // SEÇÃO 2: ALUNOS PENDENTES
+      if (posVertical > 250) {
+        doc.addPage();
+        posVertical = 20;
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(13);
+      doc.setTextColor(123, 75, 148);
+      doc.text(`Alunos com Pagamento Pendente (${alunosPendentes.length})`, 14, posVertical);
+      posVertical += 6;
+
+      doc.setFillColor(235, 140, 34);
+      doc.rect(14, posVertical, 182, 7, "F");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text("Aluno", 18, posVertical + 5);
+      doc.text("Valor da Mensalidade", 155, posVertical + 5);
+      posVertical += 8;
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(40, 40, 40);
+
+      if (alunosPendentes.length === 0) {
+        doc.text("Todos os alunos já pagaram a mensalidade!", 18, posVertical + 4);
+      } else {
+        alunosPendentes.forEach((a: any) => {
+          if (posVertical > 275) {
+            doc.addPage();
+            posVertical = 20;
+          }
+          doc.text(String(a.nome || "").slice(0, 35), 18, posVertical + 4);
+          doc.text(formatarMoeda(a.valorMensalidade), 155, posVertical + 4);
+
+          doc.setDrawColor(240, 240, 240);
+          doc.line(14, posVertical + 6, 196, posVertical + 6);
+          posVertical += 7;
+        });
+      }
+
+      // EXPORTAR COMO ARQUIVO .PDF REAL
+      const nomeArquivo = `Relatorio_Financeiro_${dataHoje.replace(/\//g, "-")}.pdf`;
+      const pdfBlob = doc.output("blob");
+
+      // No celular: aciona compartilhamento nativo de ficheiro PDF
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
+        const file = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
+        if (navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: `Relatório Financeiro - ${escola}`,
             files: [file],
           });
+          setGerandoPdf(false);
           return;
         }
-      } catch (err) {
-        // Se cancelar ou não suportar envio de arquivo direto, segue para fallback
       }
-    }
 
-    // 2. Fallback: Download direto do arquivo HTML formatado para abrir e imprimir
-    if (typeof document !== "undefined") {
-      const blob = new Blob([htmlDoc], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Relatorio_Financeiro_${dataHoje.replace(/\//g, "-")}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Fallback (ou no computador): download direto do arquivo .pdf
+      doc.save(nomeArquivo);
+    } catch (err) {
+      avisar("Erro", "Não foi possível gerar o arquivo PDF.");
+    } finally {
+      setGerandoPdf(false);
     }
   };
 
@@ -362,15 +452,15 @@ export default function FinanceScreen() {
         </View>
       </ScrollView>
 
-      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E EXPORTAR/COMPARTILHAR */}
+      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E EXPORTAR ARQUIVO .PDF REAL */}
       <Modal visible={exibirRelatorioModal} animationType="slide" onRequestClose={() => setExibirRelatorioModal(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.modalTopo}>
             <TouchableOpacity style={styles.btnVoltarModal} onPress={() => setExibirRelatorioModal(false)}>
               <Text style={styles.txtVoltarModal}>← Voltar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnImprimirModal} onPress={exportarOuImprimir}>
-              <Text style={styles.txtImprimirModal}>📤 Exportar / Compartilhar</Text>
+            <TouchableOpacity style={styles.btnImprimirModal} onPress={gerarArquivoPDF} disabled={gerandoPdf}>
+              <Text style={styles.txtImprimirModal}>{gerandoPdf ? "⏳ Gerando..." : "📥 Baixar / Exportar PDF"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -589,6 +679,6 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F3F4F6",
   },
   modalItemNome: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
-  modalItemDetalhe: { fontSize: 12, color: "#6 complications" },
+  modalItemDetalhe: { fontSize: 12, color: "#6B7280" },
   modalItemValor: { fontSize: 14, fontWeight: "bold", color: "#10B981" },
 });
