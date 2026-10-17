@@ -127,84 +127,24 @@ export default function FinanceScreen() {
     }
   };
 
-  // Impressão direta sem pop-up
+  // ✅ Disparo direto compatível com Celular (iOS/Android) e Computador
   const dispararImpressao = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined" && typeof document !== "undefined") {
-      const escola = configuracoes?.nomeEscola || "Alpha Music";
-      const dataHoje = new Date().toLocaleDateString("pt-BR");
-
-      const linhasPgtos = pagamentosValidos
-        .map(
-          (p: any) =>
-            `<tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(
-              p.valor
-            )}</td></tr>`
-        )
-        .join("");
-
-      const linhasPend = alunosPendentes
-        .map(
-          (a: any) =>
-            `<tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>`
-        )
-        .join("");
-
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "fixed";
-      iframe.style.right = "0";
-      iframe.style.bottom = "0";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "0";
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow?.document || iframe.contentDocument;
-      if (!doc) return;
-
-      doc.open();
-      doc.write(`
-        <html>
-        <head>
-          <title>Relatório Financeiro - ${escola}</title>
-          <style>
-            body { font-family: sans-serif; padding: 20px; color: #333; }
-            h2 { color: #7B4B94; margin-bottom: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; font-size: 13px; text-align: left; }
-            th { background: #7B4B94; color: #fff; }
-            .resumo { display: flex; gap: 15px; margin: 15px 0; }
-            .card { flex: 1; border: 1px solid #ddd; padding: 10px; border-radius: 6px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <h2>🎵 ${escola}</h2>
-          <p>Relatório Financeiro — Emitido em: ${dataHoje}</p>
-          <div class="resumo">
-            <div class="card"><strong>Alunos</strong><br>${alunos.length}</div>
-            <div class="card"><strong>Previsto</strong><br>${formatarMoeda(totalAReceber)}</div>
-            <div class="card"><strong style="color:green;">Recebido</strong><br>${formatarMoeda(totalRecebido)}</div>
-            <div class="card"><strong style="color:red;">Pendente</strong><br>${formatarMoeda(diferenca)}</div>
-          </div>
-          <h3>💳 Pagamentos Realizados (${pagamentosValidos.length})</h3>
-          <table><tr><th>Aluno</th><th>Data</th><th>Forma</th><th style="text-align:right;">Valor</th></tr>${
-            linhasPgtos || '<tr><td colspan="4">Nenhum</td></tr>'
-          }</table>
-          <h3>⏳ Alunos Pendentes (${alunosPendentes.length})</h3>
-          <table><tr><th>Aluno</th><th style="text-align:right;">Valor</th></tr>${
-            linhasPend || '<tr><td colspan="2">Nenhum</td></tr>'
-          }</table>
-        </body>
-        </html>
-      `);
-      doc.close();
-
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      // Injeta estilos de impressão para ocultar a barra de navegação/botões no PDF
+      if (typeof document !== "undefined" && !document.getElementById("print-style")) {
+        const style = document.createElement("style");
+        style.id = "print-style";
+        style.innerHTML = `
+          @media print {
+            .no-print { display: none !important; }
+            body, html { background: #fff !important; }
+          }
+        `;
+        document.head.appendChild(style);
+      }
       setTimeout(() => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 1000);
-      }, 300);
+        window.print();
+      }, 100);
     }
   };
 
@@ -368,10 +308,10 @@ export default function FinanceScreen() {
         </View>
       </ScrollView>
 
-      {/* 📄 MODAL DO RELATÓRIO COM BOTÃO VOLTAR */}
+      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E IMPRESSÃO NATIVA */}
       <Modal visible={exibirRelatorioModal} animationType="slide" onRequestClose={() => setExibirRelatorioModal(false)}>
         <View style={styles.modalContainer}>
-          <View style={styles.modalTopo}>
+          <View style={[styles.modalTopo, { ...Platform.select({ web: { className: "no-print" } as any }) }]}>
             <TouchableOpacity style={styles.btnVoltarModal} onPress={() => setExibirRelatorioModal(false)}>
               <Text style={styles.txtVoltarModal}>← Voltar</Text>
             </TouchableOpacity>
@@ -381,14 +321,14 @@ export default function FinanceScreen() {
           </View>
 
           <ScrollView style={styles.modalCorpo}>
-            <Text style={styles.modalTituloEscola}>🎵 {configuracoes?.nomeEscola || "Alpha Music"}</Text>
-            <Text style={styles.modalDataEmissao}>Emissão: {new Date().toLocaleDateString("pt-BR")}</Text>
+            <Text style={styles.modalTituloEscola}>🎵 {configuracoes?.nomeEscola || "Alpha Music Escola de Música"}</Text>
+            <Text style={styles.modalDataEmissao}>Relatório Financeiro — Emitido em: {new Date().toLocaleDateString("pt-BR")}</Text>
 
             <View style={styles.modalCardsResumo}>
               <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Alunos: {alunos.length}</Text></View>
               <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Previsto: {formatarMoeda(totalAReceber)}</Text></View>
-              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "green" }]}>Recebido: {formatarMoeda(totalRecebido)}</Text></View>
-              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "red" }]}>Falta: {formatarMoeda(diferenca)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#27AE60" }]}>Recebido: {formatarMoeda(totalRecebido)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#E74C3C" }]}>Falta: {formatarMoeda(diferenca)}</Text></View>
             </View>
 
             <Text style={styles.modalSecaoTitulo}>💳 Pagamentos Realizados ({pagamentosValidos.length})</Text>
