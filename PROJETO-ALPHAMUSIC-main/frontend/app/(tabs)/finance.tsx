@@ -39,6 +39,7 @@ export default function FinanceScreen() {
   const [observacao, setObservacao] = useState("");
   const [mostrarLista, setMostrarLista] = useState(false);
   const [exibirRelatorioModal, setExibirRelatorioModal] = useState(false);
+  const [tipoPeriodoRelatorio, setTipoPeriodoRelatorio] = useState<"mes" | "ano">("mes");
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
   useEffect(() => {
@@ -56,6 +57,12 @@ export default function FinanceScreen() {
     return `${limpo.slice(0, 2)}/${limpo.slice(2, 4)}/${limpo.slice(4)}`;
   };
 
+  const limparTextoEmoji = (str: string) => {
+    return (str || "")
+      .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, "")
+      .trim();
+  };
+
   const avisar = (titulo: string, msg: string) => {
     if (Platform.OS === "web" && typeof window !== "undefined") {
       window.alert(`${titulo} ${msg}`);
@@ -64,18 +71,37 @@ export default function FinanceScreen() {
     }
   };
 
+  const hoje = new Date();
+  const mesAtualStr = String(hoje.getMonth() + 1).padStart(2, "0");
+  const anoAtualStr = String(hoje.getFullYear());
+
   const nomesAlunosValidos = alunos.map((a: any) => (a.nome || "").trim().toLowerCase());
   const pagamentosValidos = pagamentos.filter((p: any) =>
     nomesAlunosValidos.includes((p.aluno || "").trim().toLowerCase())
   );
 
-  const totalRecebido = pagamentosValidos.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0);
-  const totalAReceber = alunos.reduce((acc: number, a: any) => acc + (Number(a.valorMensalidade) || 0), 0);
-  const diferenca = Math.max(0, totalAReceber - totalRecebido);
+  // Pagamentos filtrados pelo período (Mês ou Ano)
+  const pagamentosRelatorio = pagamentosValidos.filter((p: any) => {
+    const partes = (p.dataPagamento || "").split("/");
+    if (partes.length < 3) return true;
+    const mes = partes[1];
+    const ano = partes[2];
+    if (tipoPeriodoRelatorio === "mes") {
+      return mes === mesAtualStr && ano === anoAtualStr;
+    }
+    return ano === anoAtualStr;
+  });
 
-  const nomesPagaram = [...new Set(pagamentosValidos.map((p: any) => (p.aluno || "").trim().toLowerCase()))];
-  const alunosPendentes = alunos.filter((a: any) => !nomesPagaram.includes((a.nome || "").trim().toLowerCase()));
-  const totalPendente = alunosPendentes.reduce((acc: number, a: any) => acc + (Number(a.valorMensalidade) || 0), 0);
+  const totalRecebidoRelatorio = pagamentosRelatorio.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0);
+  const totalRecebidoGeral = pagamentosValidos.reduce((acc: number, p: any) => acc + (Number(p.valor) || 0), 0);
+  const totalAReceberMensal = alunos.reduce((acc: number, a: any) => acc + (Number(a.valorMensalidade) || 0), 0);
+  const totalAReceberAnual = totalAReceberMensal * 12;
+
+  const totalPrevistoRelatorio = tipoPeriodoRelatorio === "mes" ? totalAReceberMensal : totalAReceberAnual;
+  const diferencaRelatorio = Math.max(0, totalPrevistoRelatorio - totalRecebidoRelatorio);
+
+  const nomesPagaramRelatorio = [...new Set(pagamentosRelatorio.map((p: any) => (p.aluno || "").trim().toLowerCase()))];
+  const alunosPendentesRelatorio = alunos.filter((a: any) => !nomesPagaramRelatorio.includes((a.nome || "").trim().toLowerCase()));
 
   const escolherAluno = (nome: string, valorMensalidade: number) => {
     if (alunoSelecionado && alunoSelecionado.nome === nome) {
@@ -128,7 +154,6 @@ export default function FinanceScreen() {
     }
   };
 
-  // Carrega a biblioteca de PDF no navegador sob demanda (sem quebrar build)
   const carregarJsPDF = async (): Promise<any> => {
     if (typeof window === "undefined") return null;
     if ((window as any).jspdf) return (window as any).jspdf.jsPDF;
@@ -136,61 +161,169 @@ export default function FinanceScreen() {
     return new Promise((resolve) => {
       const script = document.createElement("script");
       script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      script.onload = () => {
-        resolve((window as any).jspdf ? (window as any).jspdf.jsPDF : null);
-      };
+      script.onload = () => resolve((window as any).jspdf ? (window as any).jspdf.jsPDF : null);
       script.onerror = () => resolve(null);
       document.head.appendChild(script);
     });
   };
 
-  // 📄 GERAÇÃO REAL DE ARQUIVO .PDF (Compatível com Celular e PC)
-  const gerarArquivoPDF = async () => {
+  const executarImpressaoOuPDF = async () => {
+    const ehDispositivoMovel =
+      typeof navigator !== "undefined" &&
+      /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    const escola = configuracoes?.nomeEscola || "Alpha Music Escola de Música";
+    const dataHoje = new Date().toLocaleDateString("pt-BR");
+    const tituloPeriodo = tipoPeriodoRelatorio === "mes" ? `Mensal (${mesAtualStr}/${anoAtualStr})` : `Anual (${anoAtualStr})`;
+
+    // 🖥️ COMPUTADOR: Impressão direta nativa
+    if (!ehDispositivoMovel && typeof document !== "undefined") {
+      const linhasPgtos = pagamentosRelatorio
+        .map(
+          (p: any) =>
+            `<tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${limparTextoEmoji(p.meioPagamento)}</td><td style="text-align:right;">${formatarMoeda(
+              p.valor
+            )}</td></tr>`
+        )
+        .join("");
+
+      const linhasPend = alunosPendentesRelatorio
+        .map(
+          (a: any) =>
+            `<tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>`
+        )
+        .join("");
+
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (!doc) return;
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Relatório ${tituloPeriodo} - ${escola}</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; padding: 25px; color: #2C2C2C; }
+            .cabecalho { border-bottom: 3px solid #7B4B94; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .cabecalho h1 { margin: 0; color: #1A1A2E; font-size: 24px; }
+            .cabecalho p { margin: 4px 0 0; color: #555; font-size: 13px; }
+            .data-emissao { text-align: right; font-size: 13px; color: #666; }
+            .cards-resumo { display: flex; gap: 12px; margin-bottom: 25px; }
+            .card { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px; background: #FAF9FB; text-align: center; }
+            .card .label { font-size: 11px; color: #666; text-transform: uppercase; }
+            .card .valor { font-size: 18px; font-weight: bold; margin-top: 5px; }
+            .tabela { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+            .tabela th { background: #7B4B94; color: #fff; padding: 9px; font-size: 13px; text-align: left; }
+            .tabela td { border: 1px solid #ddd; padding: 8px; font-size: 13px; }
+            .titulo-secao { font-size: 16px; font-weight: bold; color: #1A1A2E; margin-bottom: 10px; border-left: 4px solid #7B4B94; padding-left: 8px; }
+            .rodape { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 12px; font-size: 11px; color: #888; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="cabecalho">
+            <div>
+              <h1>🎵 ${escola}</h1>
+              <p>Relatório Financeiro ${tituloPeriodo}</p>
+            </div>
+            <div class="data-emissao">
+              <strong>Emissão:</strong><br>${dataHoje}
+            </div>
+          </div>
+
+          <div class="cards-resumo">
+            <div class="card"><div class="label">Alunos Ativos</div><div class="valor" style="color: #1A1A2E;">${alunos.length}</div></div>
+            <div class="card"><div class="label">${tipoPeriodoRelatorio === "mes" ? "Previsto (Mês)" : "Previsto (Ano)"}</div><div class="valor" style="color: #E67E22;">${formatarMoeda(totalPrevistoRelatorio)}</div></div>
+            <div class="card"><div class="label">Total Recebido</div><div class="valor" style="color: #27AE60;">${formatarMoeda(totalRecebidoRelatorio)}</div></div>
+            <div class="card"><div class="label">Falta Receber</div><div class="valor" style="color: #E74C3C;">${formatarMoeda(diferencaRelatorio)}</div></div>
+          </div>
+
+          <div class="titulo-secao">💳 Pagamentos Recebidos (${pagamentosRelatorio.length})</div>
+          <table class="tabela">
+            <thead>
+              <tr><th>Aluno</th><th>Data</th><th>Forma de Pgto</th><th style="text-align: right;">Valor</th></tr>
+            </thead>
+            <tbody>${linhasPgtos || '<tr><td colspan="4">Nenhum pagamento registrado no período</td></tr>'}</tbody>
+          </table>
+
+          ${
+            tipoPeriodoRelatorio === "mes"
+              ? `<div class="titulo-secao">⏳ Alunos Pendentes no Mês (${alunosPendentesRelatorio.length})</div>
+                 <table class="tabela" style="width: 70%;">
+                   <thead><tr><th>Aluno</th><th style="text-align: right;">Mensalidade</th></tr></thead>
+                   <tbody>${linhasPend || '<tr><td colspan="2">Nenhum pendente</td></tr>'}</tbody>
+                 </table>`
+              : ""
+          }
+
+          <div class="rodape">Documento emitido pelo Sistema Alpha Music.</div>
+        </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+      }, 300);
+      return;
+    }
+
+    // 📱 CELULAR: Gera PDF binário limpo sem caracteres corrompidos
     if (gerandoPdf) return;
     setGerandoPdf(true);
 
     try {
       const JsPDFConstructor = await carregarJsPDF();
       if (!JsPDFConstructor) {
-        avisar("⚠️", "Não foi possível carregar o gerador de PDF. Verifique a sua conexão.");
+        avisar("⚠️", "Não foi possível carregar o gerador de PDF.");
         setGerandoPdf(false);
         return;
       }
 
       const doc = new JsPDFConstructor({ orientation: "portrait", unit: "mm", format: "a4" });
-      const escola = configuracoes?.nomeEscola || "Alpha Music Escola de Música";
-      const dataHoje = new Date().toLocaleDateString("pt-BR");
 
-      // CABEÇALHO
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
-      doc.setTextColor(123, 75, 148); // Roxo Alpha Music
+      doc.setTextColor(123, 75, 148);
       doc.text(escola, 14, 18);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Relatório Financeiro — Emitido em: ${dataHoje}`, 14, 25);
+      doc.text(`Relatório Financeiro ${tituloPeriodo} — Emitido em: ${dataHoje}`, 14, 25);
 
-      // RESUMO CARDS
       doc.setDrawColor(220, 220, 220);
       doc.setFillColor(248, 248, 250);
       doc.roundedRect(14, 30, 182, 18, 2, 2, "FD");
 
       doc.setFontSize(10);
       doc.setTextColor(50, 50, 50);
-      doc.text(`Alunos: ${alunos.length}    |    Previsto: ${formatarMoeda(totalAReceber)}    |    Recebido: ${formatarMoeda(totalRecebido)}    |    Falta: ${formatarMoeda(diferenca)}`, 18, 41);
+      doc.text(
+        `Alunos: ${alunos.length}    |    Previsto: ${formatarMoeda(totalPrevistoRelatorio)}    |    Recebido: ${formatarMoeda(totalRecebidoRelatorio)}    |    Falta: ${formatarMoeda(diferencaRelatorio)}`,
+        18,
+        41
+      );
 
       let posVertical = 56;
 
-      // SEÇÃO 1: PAGAMENTOS REALIZADOS
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.setTextColor(123, 75, 148);
-      doc.text(`Pagamentos Realizados (${pagamentosValidos.length})`, 14, posVertical);
+      doc.text(`Pagamentos Realizados (${pagamentosRelatorio.length})`, 14, posVertical);
       posVertical += 6;
 
-      // CABEÇALHO DA TABELA
       doc.setFillColor(123, 75, 148);
       doc.rect(14, posVertical, 182, 7, "F");
       doc.setFontSize(9);
@@ -204,18 +337,18 @@ export default function FinanceScreen() {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(40, 40, 40);
 
-      if (pagamentosValidos.length === 0) {
-        doc.text("Nenhum pagamento registrado no momento.", 18, posVertical + 4);
+      if (pagamentosRelatorio.length === 0) {
+        doc.text("Nenhum pagamento registrado no período.", 18, posVertical + 4);
         posVertical += 8;
       } else {
-        pagamentosValidos.forEach((p: any) => {
+        pagamentosRelatorio.forEach((p: any) => {
           if (posVertical > 275) {
             doc.addPage();
             posVertical = 20;
           }
           doc.text(String(p.aluno || "").slice(0, 30), 18, posVertical + 4);
           doc.text(String(p.dataPagamento || ""), 85, posVertical + 4);
-          doc.text(String(p.meioPagamento || "").slice(0, 20), 125, posVertical + 4);
+          doc.text(limparTextoEmoji(p.meioPagamento).slice(0, 20), 125, posVertical + 4);
           doc.text(formatarMoeda(p.valor), 175, posVertical + 4);
 
           doc.setDrawColor(240, 240, 240);
@@ -224,58 +357,56 @@ export default function FinanceScreen() {
         });
       }
 
-      posVertical += 8;
+      if (tipoPeriodoRelatorio === "mes") {
+        posVertical += 8;
+        if (posVertical > 250) {
+          doc.addPage();
+          posVertical = 20;
+        }
 
-      // SEÇÃO 2: ALUNOS PENDENTES
-      if (posVertical > 250) {
-        doc.addPage();
-        posVertical = 20;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.setTextColor(123, 75, 148);
+        doc.text(`Alunos Pendentes no Mês (${alunosPendentesRelatorio.length})`, 14, posVertical);
+        posVertical += 6;
+
+        doc.setFillColor(235, 140, 34);
+        doc.rect(14, posVertical, 182, 7, "F");
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text("Aluno", 18, posVertical + 5);
+        doc.text("Valor da Mensalidade", 155, posVertical + 5);
+        posVertical += 8;
+
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(40, 40, 40);
+
+        if (alunosPendentesRelatorio.length === 0) {
+          doc.text("Todos os alunos já pagaram a mensalidade do mês!", 18, posVertical + 4);
+        } else {
+          alunosPendentesRelatorio.forEach((a: any) => {
+            if (posVertical > 275) {
+              doc.addPage();
+              posVertical = 20;
+            }
+            doc.text(String(a.nome || "").slice(0, 35), 18, posVertical + 4);
+            doc.text(formatarMoeda(a.valorMensalidade), 155, posVertical + 4);
+
+            doc.setDrawColor(240, 240, 240);
+            doc.line(14, posVertical + 6, 196, posVertical + 6);
+            posVertical += 7;
+          });
+        }
       }
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(13);
-      doc.setTextColor(123, 75, 148);
-      doc.text(`Alunos com Pagamento Pendente (${alunosPendentes.length})`, 14, posVertical);
-      posVertical += 6;
-
-      doc.setFillColor(235, 140, 34);
-      doc.rect(14, posVertical, 182, 7, "F");
-      doc.setFontSize(9);
-      doc.setTextColor(255, 255, 255);
-      doc.text("Aluno", 18, posVertical + 5);
-      doc.text("Valor da Mensalidade", 155, posVertical + 5);
-      posVertical += 8;
-
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(40, 40, 40);
-
-      if (alunosPendentes.length === 0) {
-        doc.text("Todos os alunos já pagaram a mensalidade!", 18, posVertical + 4);
-      } else {
-        alunosPendentes.forEach((a: any) => {
-          if (posVertical > 275) {
-            doc.addPage();
-            posVertical = 20;
-          }
-          doc.text(String(a.nome || "").slice(0, 35), 18, posVertical + 4);
-          doc.text(formatarMoeda(a.valorMensalidade), 155, posVertical + 4);
-
-          doc.setDrawColor(240, 240, 240);
-          doc.line(14, posVertical + 6, 196, posVertical + 6);
-          posVertical += 7;
-        });
-      }
-
-      // EXPORTAR COMO ARQUIVO .PDF REAL
-      const nomeArquivo = `Relatorio_Financeiro_${dataHoje.replace(/\//g, "-")}.pdf`;
+      const nomeArquivo = `Relatorio_${tipoPeriodoRelatorio === "mes" ? "Mensal" : "Anual"}_${dataHoje.replace(/\//g, "-")}.pdf`;
       const pdfBlob = doc.output("blob");
 
-      // No celular: aciona compartilhamento nativo de ficheiro PDF
       if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
         const file = new File([pdfBlob], nomeArquivo, { type: "application/pdf" });
         if (navigator.canShare({ files: [file] })) {
           await navigator.share({
-            title: `Relatório Financeiro - ${escola}`,
+            title: `Relatório Financeiro ${tituloPeriodo} - ${escola}`,
             files: [file],
           });
           setGerandoPdf(false);
@@ -283,7 +414,6 @@ export default function FinanceScreen() {
         }
       }
 
-      // Fallback (ou no computador): download direto do arquivo .pdf
       doc.save(nomeArquivo);
     } catch (err) {
       avisar("Erro", "Não foi possível gerar o arquivo PDF.");
@@ -303,16 +433,16 @@ export default function FinanceScreen() {
             <Text style={styles.resumoValor}>{alunos.length}</Text>
           </View>
           <View style={styles.cardResumo}>
-            <Text style={styles.resumoLabel}>📋 Previsto</Text>
-            <Text style={styles.resumoValorReceber}>{formatarMoeda(totalAReceber)}</Text>
+            <Text style={styles.resumoLabel}>📋 Previsto (Mês)</Text>
+            <Text style={styles.resumoValorReceber}>{formatarMoeda(totalAReceberMensal)}</Text>
           </View>
           <View style={styles.cardResumo}>
-            <Text style={styles.resumoLabel}>✅ Recebido</Text>
-            <Text style={styles.resumoValorRecebido}>{formatarMoeda(totalRecebido)}</Text>
+            <Text style={styles.resumoLabel}>✅ Total Recebido</Text>
+            <Text style={styles.resumoValorRecebido}>{formatarMoeda(totalRecebidoGeral)}</Text>
           </View>
           <View style={styles.cardResumo}>
-            <Text style={styles.resumoLabel}>📊 Falta</Text>
-            <Text style={styles.resumoValorFalta}>{formatarMoeda(diferenca)}</Text>
+            <Text style={styles.resumoLabel}>📊 Falta (Mês)</Text>
+            <Text style={styles.resumoValorFalta}>{formatarMoeda(Math.max(0, totalAReceberMensal - totalRecebidoRelatorio))}</Text>
           </View>
         </View>
 
@@ -321,8 +451,8 @@ export default function FinanceScreen() {
         </TouchableOpacity>
 
         <View style={styles.pendentesCard}>
-          <Text style={styles.subtitulo}>⚠️ Alunos Pendentes ({alunosPendentes.length})</Text>
-          {alunosPendentes.map((aluno: any) => {
+          <Text style={styles.subtitulo}>⚠️ Alunos Pendentes no Mês ({alunosPendentesRelatorio.length})</Text>
+          {alunosPendentesRelatorio.map((aluno: any) => {
             const id = aluno.id || aluno._id;
             const selecionado = alunoSelecionado && alunoSelecionado.nome === aluno.nome;
             return (
@@ -434,7 +564,7 @@ export default function FinanceScreen() {
         </View>
 
         <View style={styles.listaCard}>
-          <Text style={styles.subtitulo}>📋 Histórico de Pagamentos</Text>
+          <Text style={styles.subtitulo}>📋 Histórico Geral de Pagamentos</Text>
           {pagamentosValidos.map((pg: any) => (
             <View key={pg.id || pg._id} style={styles.itemPagamento}>
               <View style={{ flex: 1 }}>
@@ -452,54 +582,82 @@ export default function FinanceScreen() {
         </View>
       </ScrollView>
 
-      {/* 📄 MODAL DO RELATÓRIO COM VOLTAR E EXPORTAR ARQUIVO .PDF REAL */}
+      {/* 📄 MODAL DO RELATÓRIO COM FILTRO MÊS / ANO */}
       <Modal visible={exibirRelatorioModal} animationType="slide" onRequestClose={() => setExibirRelatorioModal(false)}>
         <View style={styles.modalContainer}>
           <View style={styles.modalTopo}>
             <TouchableOpacity style={styles.btnVoltarModal} onPress={() => setExibirRelatorioModal(false)}>
               <Text style={styles.txtVoltarModal}>← Voltar</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.btnImprimirModal} onPress={gerarArquivoPDF} disabled={gerandoPdf}>
-              <Text style={styles.txtImprimirModal}>{gerandoPdf ? "⏳ Gerando..." : "📥 Baixar / Exportar PDF"}</Text>
+            <TouchableOpacity style={styles.btnImprimirModal} onPress={executarImpressaoOuPDF} disabled={gerandoPdf}>
+              <Text style={styles.txtImprimirModal}>
+                {gerandoPdf ? "⏳ Gerando..." : "🖨️ Imprimir / PDF"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Seletor Mês / Ano */}
+          <View style={styles.filtroPeriodoContainer}>
+            <TouchableOpacity
+              style={[styles.filtroPeriodoBotao, tipoPeriodoRelatorio === "mes" && styles.filtroPeriodoAtivo]}
+              onPress={() => setTipoPeriodoRelatorio("mes")}
+            >
+              <Text style={[styles.filtroPeriodoTexto, tipoPeriodoRelatorio === "mes" && styles.filtroPeriodoTextoAtivo]}>
+                📅 Mês Atual ({mesAtualStr}/{anoAtualStr})
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filtroPeriodoBotao, tipoPeriodoRelatorio === "ano" && styles.filtroPeriodoAtivo]}
+              onPress={() => setTipoPeriodoRelatorio("ano")}
+            >
+              <Text style={[styles.filtroPeriodoTexto, tipoPeriodoRelatorio === "ano" && styles.filtroPeriodoTextoAtivo]}>
+                📈 Ano Completo ({anoAtualStr})
+              </Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalCorpo}>
             <Text style={styles.modalTituloEscola}>🎵 {configuracoes?.nomeEscola || "Alpha Music Escola de Música"}</Text>
-            <Text style={styles.modalDataEmissao}>Relatório Financeiro — Emitido em: {new Date().toLocaleDateString("pt-BR")}</Text>
+            <Text style={styles.modalDataEmissao}>
+              Relatório {tipoPeriodoRelatorio === "mes" ? `Mensal (${mesAtualStr}/${anoAtualStr})` : `Anual (${anoAtualStr})`} — Emitido em: {new Date().toLocaleDateString("pt-BR")}
+            </Text>
 
             <View style={styles.modalCardsResumo}>
               <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Alunos: {alunos.length}</Text></View>
-              <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Previsto: {formatarMoeda(totalAReceber)}</Text></View>
-              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#27AE60" }]}>Recebido: {formatarMoeda(totalRecebido)}</Text></View>
-              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#E74C3C" }]}>Falta: {formatarMoeda(diferenca)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Previsto: {formatarMoeda(totalPrevistoRelatorio)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#27AE60" }]}>Recebido: {formatarMoeda(totalRecebidoRelatorio)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "#E74C3C" }]}>Falta: {formatarMoeda(diferencaRelatorio)}</Text></View>
             </View>
 
-            <Text style={styles.modalSecaoTitulo}>💳 Pagamentos Realizados ({pagamentosValidos.length})</Text>
-            {pagamentosValidos.length === 0 ? (
-              <Text style={styles.modalTextoVazio}>Nenhum pagamento efetuado.</Text>
+            <Text style={styles.modalSecaoTitulo}>💳 Pagamentos no Período ({pagamentosRelatorio.length})</Text>
+            {pagamentosRelatorio.length === 0 ? (
+              <Text style={styles.modalTextoVazio}>Nenhum pagamento registrado neste período.</Text>
             ) : (
-              pagamentosValidos.map((p: any) => (
+              pagamentosRelatorio.map((p: any) => (
                 <View key={p.id || p._id} style={styles.modalLinhaItem}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.modalItemNome}>{p.aluno}</Text>
-                    <Text style={styles.modalItemDetalhe}>{p.dataPagamento} • {p.meioPagamento}</Text>
+                    <Text style={styles.modalItemDetalhe}>{p.dataPagamento} • {limparTextoEmoji(p.meioPagamento)}</Text>
                   </View>
                   <Text style={styles.modalItemValor}>{formatarMoeda(p.valor)}</Text>
                 </View>
               ))
             )}
 
-            <Text style={styles.modalSecaoTitulo}>⏳ Alunos Pendentes ({alunosPendentes.length})</Text>
-            {alunosPendentes.length === 0 ? (
-              <Text style={styles.modalTextoVazio}>Todos os alunos estão em dia!</Text>
-            ) : (
-              alunosPendentes.map((a: any) => (
-                <View key={a.id || a._id} style={styles.modalLinhaItem}>
-                  <Text style={styles.modalItemNome}>{a.nome}</Text>
-                  <Text style={[styles.modalItemValor, { color: "#E67E22" }]}>{formatarMoeda(a.valorMensalidade)}</Text>
-                </View>
-              ))
+            {tipoPeriodoRelatorio === "mes" && (
+              <>
+                <Text style={styles.modalSecaoTitulo}>⏳ Alunos Pendentes no Mês ({alunosPendentesRelatorio.length})</Text>
+                {alunosPendentesRelatorio.length === 0 ? (
+                  <Text style={styles.modalTextoVazio}>Todos os alunos estão em dia!</Text>
+                ) : (
+                  alunosPendentesRelatorio.map((a: any) => (
+                    <View key={a.id || a._id} style={styles.modalLinhaItem}>
+                      <Text style={styles.modalItemNome}>{a.nome}</Text>
+                      <Text style={[styles.modalItemValor, { color: "#E67E22" }]}>{formatarMoeda(a.valorMensalidade)}</Text>
+                    </View>
+                  ))
+                )}
+              </>
             )}
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -620,7 +778,7 @@ const styles = StyleSheet.create({
   botaoExcluir: { padding: 6 },
   botaoExcluirTexto: { fontSize: 16 },
 
-  // Estilos do Modal do Relatório
+  // Estilos do Modal
   modalContainer: { flex: 1, backgroundColor: "#fff" },
   modalTopo: {
     flexDirection: "row",
@@ -646,6 +804,37 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   txtImprimirModal: { fontSize: 14, fontWeight: "bold", color: "#fff" },
+
+  // Barra de Filtro de Período (Mês / Ano)
+  filtroPeriodoContainer: {
+    flexDirection: "row",
+    padding: 10,
+    backgroundColor: "#F3F4F6",
+    gap: 8,
+  },
+  filtroPeriodoBotao: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 6,
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filtroPeriodoAtivo: {
+    backgroundColor: "#7B4B94",
+    borderColor: "#7B4B94",
+  },
+  filtroPeriodoTexto: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+  filtroPeriodoTextoAtivo: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
+
   modalCorpo: { flex: 1, padding: 16 },
   modalTituloEscola: { fontSize: 20, fontWeight: "bold", color: "#1A1A2E" },
   modalDataEmissao: { fontSize: 13, color: "#666", marginTop: 2, marginBottom: 14 },
