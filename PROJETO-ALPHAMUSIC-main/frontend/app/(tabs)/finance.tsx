@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Modal,
 } from "react-native";
 import { useState, useEffect } from "react";
 import { useStore } from "./store";
@@ -37,6 +38,7 @@ export default function FinanceScreen() {
   const [mostrarOpcoes, setMostrarOpcoes] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [mostrarLista, setMostrarLista] = useState(false);
+  const [exibirRelatorioModal, setExibirRelatorioModal] = useState(false);
 
   useEffect(() => {
     if (carregarDados) carregarDados();
@@ -74,7 +76,6 @@ export default function FinanceScreen() {
   const alunosPendentes = alunos.filter((a: any) => !nomesPagaram.includes((a.nome || "").trim().toLowerCase()));
   const totalPendente = alunosPendentes.reduce((acc: number, a: any) => acc + (Number(a.valorMensalidade) || 0), 0);
 
-  // Alterna seleção: 1º clique seleciona, 2º clique desseleciona
   const escolherAluno = (nome: string, valorMensalidade: number) => {
     if (alunoSelecionado && alunoSelecionado.nome === nome) {
       setAlunoSelecionado(null);
@@ -126,33 +127,42 @@ export default function FinanceScreen() {
     }
   };
 
-  const gerarRelatorioPDF = () => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      const janela = window.open("", "_blank");
-      if (!janela) return avisar("Aviso", "Permita pop-ups no navegador para emitir o relatório.");
-
+  // Impressão direta sem pop-up
+  const dispararImpressao = () => {
+    if (Platform.OS === "web" && typeof window !== "undefined" && typeof document !== "undefined") {
       const escola = configuracoes?.nomeEscola || "Alpha Music";
       const dataHoje = new Date().toLocaleDateString("pt-BR");
 
       const linhasPgtos = pagamentosValidos
         .map(
-          (p: any) => `
-        <tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(
-            p.valor
-          )}</td></tr>
-      `
+          (p: any) =>
+            `<tr><td>${p.aluno}</td><td>${p.dataPagamento}</td><td>${p.meioPagamento}</td><td style="text-align:right;">${formatarMoeda(
+              p.valor
+            )}</td></tr>`
         )
         .join("");
 
       const linhasPend = alunosPendentes
         .map(
-          (a: any) => `
-        <tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>
-      `
+          (a: any) =>
+            `<tr><td>${a.nome}</td><td style="text-align:right;">${formatarMoeda(a.valorMensalidade)}</td></tr>`
         )
         .join("");
 
-      janela.document.write(`
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (!doc) return;
+
+      doc.open();
+      doc.write(`
         <html>
         <head>
           <title>Relatório Financeiro - ${escola}</title>
@@ -186,9 +196,15 @@ export default function FinanceScreen() {
         </body>
         </html>
       `);
-      janela.document.close();
-      janela.focus();
-      janela.print();
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      }, 300);
     }
   };
 
@@ -216,8 +232,8 @@ export default function FinanceScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.botaoRelatorio} onPress={gerarRelatorioPDF}>
-          <Text style={styles.textoBotaoRelatorio}>📄 Gerar Relatório / Imprimir PDF</Text>
+        <TouchableOpacity style={styles.botaoRelatorio} onPress={() => setExibirRelatorioModal(true)}>
+          <Text style={styles.textoBotaoRelatorio}>📄 Ver Relatório / Imprimir PDF</Text>
         </TouchableOpacity>
 
         <View style={styles.pendentesCard}>
@@ -351,6 +367,60 @@ export default function FinanceScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {/* 📄 MODAL DO RELATÓRIO COM BOTÃO VOLTAR */}
+      <Modal visible={exibirRelatorioModal} animationType="slide" onRequestClose={() => setExibirRelatorioModal(false)}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalTopo}>
+            <TouchableOpacity style={styles.btnVoltarModal} onPress={() => setExibirRelatorioModal(false)}>
+              <Text style={styles.txtVoltarModal}>← Voltar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.btnImprimirModal} onPress={dispararImpressao}>
+              <Text style={styles.txtImprimirModal}>🖨️ Imprimir / PDF</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalCorpo}>
+            <Text style={styles.modalTituloEscola}>🎵 {configuracoes?.nomeEscola || "Alpha Music"}</Text>
+            <Text style={styles.modalDataEmissao}>Emissão: {new Date().toLocaleDateString("pt-BR")}</Text>
+
+            <View style={styles.modalCardsResumo}>
+              <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Alunos: {alunos.length}</Text></View>
+              <View style={styles.modalCardMini}><Text style={styles.modalCardMiniTxt}>Previsto: {formatarMoeda(totalAReceber)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "green" }]}>Recebido: {formatarMoeda(totalRecebido)}</Text></View>
+              <View style={styles.modalCardMini}><Text style={[styles.modalCardMiniTxt, { color: "red" }]}>Falta: {formatarMoeda(diferenca)}</Text></View>
+            </View>
+
+            <Text style={styles.modalSecaoTitulo}>💳 Pagamentos Realizados ({pagamentosValidos.length})</Text>
+            {pagamentosValidos.length === 0 ? (
+              <Text style={styles.modalTextoVazio}>Nenhum pagamento efetuado.</Text>
+            ) : (
+              pagamentosValidos.map((p: any) => (
+                <View key={p.id || p._id} style={styles.modalLinhaItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalItemNome}>{p.aluno}</Text>
+                    <Text style={styles.modalItemDetalhe}>{p.dataPagamento} • {p.meioPagamento}</Text>
+                  </View>
+                  <Text style={styles.modalItemValor}>{formatarMoeda(p.valor)}</Text>
+                </View>
+              ))
+            )}
+
+            <Text style={styles.modalSecaoTitulo}>⏳ Alunos Pendentes ({alunosPendentes.length})</Text>
+            {alunosPendentes.length === 0 ? (
+              <Text style={styles.modalTextoVazio}>Todos os alunos estão em dia!</Text>
+            ) : (
+              alunosPendentes.map((a: any) => (
+                <View key={a.id || a._id} style={styles.modalLinhaItem}>
+                  <Text style={styles.modalItemNome}>{a.nome}</Text>
+                  <Text style={[styles.modalItemValor, { color: "#E67E22" }]}>{formatarMoeda(a.valorMensalidade)}</Text>
+                </View>
+              ))
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -465,4 +535,66 @@ const styles = StyleSheet.create({
   pgtoValor: { fontSize: 15, fontWeight: "bold", color: "#27AE60", marginRight: 10 },
   botaoExcluir: { padding: 6 },
   botaoExcluirTexto: { fontSize: 16 },
+
+  // Estilos do Modal do Relatório
+  modalContainer: { flex: 1, backgroundColor: "#fff" },
+  modalTopo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    backgroundColor: "#FAF9FB",
+  },
+  btnVoltarModal: {
+    backgroundColor: "#E5E7EB",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  txtVoltarModal: { fontSize: 14, fontWeight: "bold", color: "#374151" },
+  btnImprimirModal: {
+    backgroundColor: "#7B4B94",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  txtImprimirModal: { fontSize: 14, fontWeight: "bold", color: "#fff" },
+  modalCorpo: { flex: 1, padding: 16 },
+  modalTituloEscola: { fontSize: 20, fontWeight: "bold", color: "#1A1A2E" },
+  modalDataEmissao: { fontSize: 13, color: "#666", marginTop: 2, marginBottom: 14 },
+  modalCardsResumo: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 },
+  modalCardMini: {
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  modalCardMiniTxt: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  modalSecaoTitulo: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#7B4B94",
+    marginTop: 14,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3EAF9",
+    paddingBottom: 4,
+  },
+  modalTextoVazio: { fontSize: 13, color: "#9CA3AF", fontStyle: "italic", marginVertical: 6 },
+  modalLinhaItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalItemNome: { fontSize: 14, fontWeight: "600", color: "#1F2937" },
+  modalItemDetalhe: { fontSize: 12, color: "#6B7280" },
+  modalItemValor: { fontSize: 14, fontWeight: "bold", color: "#10B981" },
 });
